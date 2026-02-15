@@ -27,15 +27,17 @@ How it works:
 
 Installation and usage:
 1. Open line_following.ino in Arduino IDE.
-2. Connect servos to pins 7 and 8, sensors to A0–A2, LED to pin 5, buttons to pins 4 and 6.
+2. Connect servos to pins 7 and 8, sensors to A0 A2, LED to pin 5, buttons to pins 4 and 6.
 3. Upload code to Arduino board.
 4. Press Calibrate to calibrate black/white thresholds.
 5. Press Start to begin line-following operation.
+
 Lessons Learned:
 - Understanding thresholds is critical for reliable line following.
 - PID-style control improves smoothness over simple on/off steering.
 - Clear state management simplifies complex robot behavior.
 - Timing and delay management prevents unexpected behavior during turns.
+
 Future Improvements
 - Add obstacle detection and avoidance.
 - Implement full PID (P+I+D) for more precise control.
