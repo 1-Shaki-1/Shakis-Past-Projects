@@ -6,8 +6,20 @@
 #include <BlynkSimpleEsp32.h>
 #include <time.h>
 
+
+
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+
+
+TaskHandle_t emailTaskHandle = NULL;
+volatile bool sendEmailRequest = false;
+
+TaskHandle_t LEDTaskHandle;
+
+String emailAddress;
+String emailDate;
+String emailTime;
 
 
 String urlencode(String str) {
@@ -62,7 +74,7 @@ void sendEmail(String address, String date, String time) {
   Serial.println(url);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.begin(client, url);
-
+  http.setTimeout(5000);
   int code = http.GET();
 
   Serial.print(F("HTTP Code: "));
@@ -73,6 +85,28 @@ void sendEmail(String address, String date, String time) {
 
   http.end();
 }
+
+
+
+void emailTask(void* parameter) {
+  while (true) {
+    if (sendEmailRequest) {
+      sendEmailRequest = false;
+
+      Serial.println("EMAIL TASK STARTED");
+
+      sendEmail(emailAddress,
+                emailDate,
+                emailTime);
+
+      Serial.println("EMAIL TASK FINISHED");
+    }
+
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+  }
+}
+
+
 
 const char* ssid = "BELL769";
 const char* password = "C5C2F99DF6A3";
@@ -95,29 +129,24 @@ enum TrashState {
   BLUE
 };
 
-bool fullNotificationSent = false;
-
-int previousColorState = TrashState::BLUE;
 
 // Fade states
 const int BRIGHT = 0;
 const int DIM = 1;
 
-int colorState = TrashState::GREEN;
+TrashState colorState = GREEN;
+TrashState previousColorState = BLUE;
 
 int fadeBrightness = 0;
-int fadeDirection = 5;
-
-
+double fadeDirection = 5;
+const int FADE_CD = 20;
 const float HEIGHT = 34.0;
 
 bool buzzerOn = false;
-bool isConnected;
-
 const int BEEP_CD = 500;
 
-long distance = 999;
-double percentage = 0;
+long distance = 999;    // Initial distance
+double percentage = 0;  // Percent calculated
 
 //Converts physical centimeters of fill space into dynamic percentages based on total height
 // Red triggers when there is less than 5cm of physical space remaining at the top
@@ -127,9 +156,13 @@ const double YELLOW_THRESHOLD = ((HEIGHT - 10.0) / HEIGHT) * 100.0;
 // Green reset clearing buffer zone
 const double GREEN_THRESHOLD = YELLOW_THRESHOLD - 5.0;
 
+bool isConnected;
+
 unsigned long beepTimer = 0;
 unsigned long blynkTimer = 0;
 unsigned long reconnectTimer = 0;
+
+bool fullNotificationSent = false;
 
 int badReadings = 0;
 
@@ -144,6 +177,10 @@ void yellowFlash();
 void redFlash();
 void blueFlash();
 void beepFull();
+
+
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -181,6 +218,26 @@ void setup() {
   Serial.println(YELLOW_THRESHOLD);
 
   Blynk.logEvent("trash_online", "Trash can system initialized!");
+
+
+  xTaskCreatePinnedToCore(
+    emailTask,
+    "EmailTask",
+    10000,
+    NULL,
+    1,
+    &emailTaskHandle,
+    0);
+
+  xTaskCreatePinnedToCore(
+    blueFadeTask,    // Task function
+    "BlueFadeTask",  // Name of the task
+    2048,            // Stack size in words
+    NULL,            // Task input parameter
+    2,               // Priority of the task
+    &LEDTaskHandle,  // Task handle
+    1                // Core ID (1 or 0)
+  );
 }
 
 void loop() {
@@ -189,21 +246,23 @@ void loop() {
   if (isConnected) {
     updateSensor();
     updateTrashState();
-    updateLEDs();
-    updateBuzzer();
-    
+    updateBlynk();
+    handleNotifications();
   }
 
- 
- 
+  updateLEDs();
+  updateBuzzer();
 
-  Serial.print("Distance: ");
-  Serial.print(distance);
-  Serial.print("  Percentage: ");
-  Serial.print(percentage);
-  Serial.print("  State: ");
-  Serial.println(colorState);
-  handleNotifications();
+
+  static unsigned long lastPrint = 0;
+
+  if (millis() - lastPrint > 1000) {
+    lastPrint = millis();
+
+    Serial.print(distance);
+    Serial.print(" ");
+    Serial.println(colorState);
+  }
 }
 
 
@@ -222,7 +281,7 @@ long readDistance() {
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
 
-  long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  long duration = pulseIn(ECHO_PIN, HIGH, 5000);
   long distance = duration * 0.034 / 2;
   if (distance > 0 && distance <= 2) {
     return 1;
@@ -256,25 +315,7 @@ void redFlash() {
   analogWrite(LED_PING, 0);
   analogWrite(LED_PINB, 0);
 }
-void blueFlash() {
-  static unsigned long lastFade = 0;
-  // (Static brightness variables removed from here so it uses the globals)
 
-  if (millis() - lastFade > 5) {
-    lastFade = millis();
-
-    fadeBrightness += fadeDirection;
-
-    if (fadeBrightness >= 255 || fadeBrightness <= 0) {
-      fadeDirection = -fadeDirection;
-    }
-
-    analogWrite(LED_PINB, fadeBrightness);
-  }
-
-  analogWrite(LED_PINR, 0);
-  analogWrite(LED_PING, 0);
-}
 
 
 void beepFull() {
@@ -297,8 +338,8 @@ void handleConnection() {
   isConnected = (WiFi.status() == WL_CONNECTED);
 
   if (!isConnected) {
-    colorState = TrashState::BLUE;
-    digitalWrite(BUZZER_PIN, LOW);
+    colorState = BLUE;
+
 
     if (millis() - reconnectTimer > 5000) {
       reconnectTimer = millis();
@@ -319,7 +360,7 @@ void handleConnection() {
 }
 
 void updateSensor() {
-  if (millis() - sensorTimer > 30) {
+  if (millis() - sensorTimer > 250) {
     sensorTimer = millis();
 
     distance = getAverageDistance();
@@ -330,16 +371,16 @@ void updateSensor() {
 void updateTrashState() {
   if (distance == 999) {
     badReadings++;
-    if (badReadings >= 5) colorState = TrashState::BLUE;
+    if (badReadings >= 5) colorState = BLUE;
   } else {
     badReadings = 0;
-    if (colorState != TrashState::RED) {
+    if (colorState != RED) {
       if (percentage >= RED_THRESHOLD) {
-        colorState = TrashState::RED;
+        colorState = RED;
       } else if (percentage >= YELLOW_THRESHOLD) {
-        colorState = TrashState::YELLOW;
+        colorState = YELLOW;
       } else {
-        colorState = TrashState::GREEN;
+        colorState = GREEN;
       }
     } else {
       if (percentage < RED_THRESHOLD - 5)
@@ -357,8 +398,8 @@ void updateBlynk() {
     Blynk.virtualWrite(V0, distance);
     Blynk.virtualWrite(V3, percentage);
 
-    const char* statusText = (colorState == TrashState::RED) ? "FULL" : (colorState == TrashState::YELLOW) ? "HALF FULL"
-                                                                                                           : "EMPTY";
+    const char* statusText = (colorState == RED) ? "FULL" : (colorState == YELLOW) ? "HALF FULL"
+                                                                                   : "EMPTY";
     Blynk.virtualWrite(V1, statusText);
 
     Serial.print(F("Dist="));
@@ -372,7 +413,7 @@ void updateBlynk() {
 
 void handleNotifications() {
   // 4. --- NOTIFICATION LOGIC (Only if online & freshly full) ---
-  if (isConnected && colorState == TrashState::RED) {
+  if (isConnected && colorState == RED) {
     if (!fullNotificationSent) {
       Serial.println(F("SENDING NOTIFICATION -> TRASH FULL!"));
       Blynk.logEvent("trash_full", "Trash can is full!");
@@ -383,10 +424,15 @@ void handleNotifications() {
         char dateBuffer[20], timeBuffer[20];
         strftime(dateBuffer, sizeof(dateBuffer), "%Y-%m-%d", &timeinfo);
         strftime(timeBuffer, sizeof(timeBuffer), "%H:%M:%S", &timeinfo);
-        sendEmail("123MainStreet", String(dateBuffer), String(timeBuffer));
+        if (!sendEmailRequest) {
+          emailAddress = "123MainStreet";
+          emailDate = String(dateBuffer);
+          emailTime = String(timeBuffer);
+          sendEmailRequest = true;
+        }
       }
     }
-  } else if (colorState != TrashState::RED) {
+  } else if (colorState != RED) {
     fullNotificationSent = false;
   }
 
@@ -402,19 +448,18 @@ void handleNotifications() {
 void updateLEDs() {
   // 6. --- PHYSICAL HARDWARE OUTPUTS (Always runs) ---
   switch (colorState) {
-    case TrashState::GREEN:
+    case GREEN:
       greenFlash();
 
       break;
-    case TrashState::YELLOW:
+    case YELLOW:
       yellowFlash();
 
       break;
-    case TrashState::RED:
+    case RED:
       redFlash();
       break;
-    case TrashState::BLUE:
-      blueFlash();
+    case BLUE:
 
       break;
   }
@@ -422,7 +467,7 @@ void updateLEDs() {
 
 
 void updateBuzzer() {
-  if (colorState == TrashState::RED) {
+  if (colorState == RED) {
     beepFull();
   } else {
     digitalWrite(BUZZER_PIN, LOW);
@@ -449,7 +494,7 @@ String getDateTime() {
 long getAverageDistance() {
   long total = 0;
   int count = 0;
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 3; i++) {
     long reading = readDistance();
     if (reading != 999) {
       total += reading;
@@ -460,4 +505,30 @@ long getAverageDistance() {
     return 999;
   }
   return total / count;
+}
+
+
+void blueFadeTask(void* parameter) {
+  while (true) {
+    // Only process the fade step if we are currently in the BLUE state
+    if (colorState == BLUE) {
+      fadeBrightness += fadeDirection;
+
+      if (fadeBrightness >= 255) {
+        fadeBrightness = 255;
+        fadeDirection = -5;
+      }
+      if (fadeBrightness <= 0) {
+        fadeBrightness = 0;
+        fadeDirection = 5;
+      }
+
+      analogWrite(LED_PINR, 0);
+      analogWrite(LED_PING, 0);
+      analogWrite(LED_PINB, (int)fadeBrightness);
+    }
+
+    // Delay by variable to control the speed of the fade smoothly
+    vTaskDelay(FADE_CD / portTICK_PERIOD_MS);
+  }
 }
