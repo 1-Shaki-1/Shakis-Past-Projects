@@ -114,7 +114,7 @@ void updateBuzzer();
 String getDateTime();
 void blueFadeTask(void* parameter);
 void board_flash();
-
+void updateGPS();
 // Encodes strings into valid URL formats.
 String urlencode(String str) {
   String encoded = "";
@@ -266,7 +266,7 @@ void loop() {
   
   updateSensor();
   updateTrashState();
-
+  updateGPS();
   if (isConnected) {
     updateBlynk();
     handleNotifications();
@@ -590,5 +590,41 @@ void board_flash() {
     }
   } else {
     analogWrite(ONBOARD_LED, 0);
+  }
+}
+
+// Reads GPS stream and prints location.
+void updateGPS() {
+  // Feed raw characters to parser.
+  while (GPSSerial.available() > 0) {
+    gps.encode(GPSSerial.read());
+  }
+
+  // Print data when position updates.
+  if (gps.location.isUpdated()) {
+    float latitude = gps.location.lat();
+    float longitude = gps.location.lng();
+
+    Serial.print(F("Latitude: "));
+    Serial.println(latitude, 6);
+    Serial.print(F("Longitude: "));
+    Serial.println(longitude, 6);
+  }
+}
+
+// Returns formatted location string.
+String getGPSLocation() {
+  // Parse waiting serial bytes.
+  while (GPSSerial.available() > 0) {
+    gps.encode(GPSSerial.read());
+  }
+
+  // Check for valid fix.
+  if (gps.location.isValid()) {
+    String lat = String(gps.location.lat(), 6);
+    String lng = String(gps.location.lng(), 6);
+    return lat + ", " + lng;
+  } else {
+    return "No GPS Lock";
   }
 }
