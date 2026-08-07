@@ -184,7 +184,7 @@ void emailTask(void* parameter) {
 
       Serial.println("EMAIL TASK STARTED");
 
-      sendEmail(emailAddress,
+      sendEmail(getMapLink(),
                 emailDate,
                 emailTime);
 
@@ -276,16 +276,9 @@ void loop() {
   updateBuzzer();
   board_flash();
   // Read GPS stream
-  while (GPSSerial.available()) {
-    gps.encode(GPSSerial.read());
-  }
+  
 
-  if (gps.location.isUpdated()) {
-    Serial.print(F("Latitude: "));
-    Serial.println(gps.location.lat(), 6);
-    Serial.print(F("Longitude: "));
-    Serial.println(gps.location.lng(), 6);
-  }
+   
 }
 
 // Converts distance measurement into fill percentage.
@@ -451,7 +444,7 @@ void updateBlynk() {
 void handleNotifications() {
   if (isConnected && colorState == RED) {
     if (!fullNotificationSent) {
-      Serial.println(F("SENDING NOTIFICATION -> TRASH FULL!"));
+       Serial.println(F("SENDING NOTIFICATION -> TRASH FULL!"));
       Blynk.logEvent("trash_full", "Trash can is full!");
       fullNotificationSent = true;
 
@@ -605,10 +598,6 @@ void updateGPS() {
     float latitude = gps.location.lat();
     float longitude = gps.location.lng();
 
-    Serial.print(F("Latitude: "));
-    Serial.println(latitude, 6);
-    Serial.print(F("Longitude: "));
-    Serial.println(longitude, 6);
   }
 }
 
@@ -627,4 +616,17 @@ String getGPSLocation() {
   } else {
     return "No GPS Lock";
   }
+}
+
+String getMapLink() {
+
+  if (!gps.location.isValid()) {
+    return "No GPS Lock";
+  }
+
+  String LATITUDE = String(gps.location.lat(),6);
+  String LONGITUDE = String(gps.location.lng(),6);
+  String link = "https://maps.google.com/?q="+LATITUDE+","+LONGITUDE+"";
+  return link;
+
 }
