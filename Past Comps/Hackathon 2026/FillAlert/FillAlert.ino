@@ -104,12 +104,16 @@ void handleRoot() {
   server.send(200, "text/html", index_html);
 }
 
+
+
 // Sends data to webpage
 void handleData() {
   String json = "{";
   json += "\"percentage\":" + String(percentage) + ",";
   json += "\"hasGPS\":" + String(gpsValid) + ",";
-  json += "\"ledColor\":" + String(colorState);
+  json += "\"ledColor\":" + String(colorState) + ",";
+  json += String("\"mapUrl\":\"https://maps.google.com/maps?q=") + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
+  
   json += "}";
   server.send(200, "application/json", json);
 }

@@ -8,7 +8,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            margin-top: 50px;
+            margin-top: 10px;
             background-color: #0f172a;
             color: #ffffff;
         }
@@ -25,34 +25,54 @@ const char index_html[] PROGMEM = R"rawliteral(
             margin-bottom: 50px;
         }
 
-        .text {
-            
+        #header {
             justify-content: center;
+            top:auto;    
             font-size: 40px;
             color: #f8fafc;
-            background-color: #1e293b;
+            background-color: #0f172a;
             padding: 20px;
             border-radius: 10px;
-            width: 15vw;
-            
-            
-            margin: 1vh 1vw;
+            width: 85%;
+            height: 5%;
+            bottom:auto;
+            margin-top: 0px;
+            margin-bottom: 10px;
+
             border: 10px solid #334155;
         }
 
+
+        .text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            top:auto;    
+            font-size: 40px;
+            color: #f8fafc;
+            background-color: #0f172a;
+            padding: 20px;
+            border-radius: 10px;
+            width: 85%;
+            height: 100%;
+            bottom:auto;
+           margin-top: 10px;
+           margin-bottom: 10px;
+            border: 10px solid #334155;
+        }
         .container {
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            align-items: flex-start;
+            margin: 10px;
             flex-wrap: nowrap;
-            height: relative;
             width: 20vw;
+            height: 50vh;
             padding: 20px;
             border-radius: 10px;
             background-color: #1e293b;
             border: 10px solid #334155;
-            margin: 0vh 1vw;
+            
         }
 
         .outer-container {
@@ -63,7 +83,14 @@ const char index_html[] PROGMEM = R"rawliteral(
             
             
         }
-
+        
+        .container iframe {
+            width: 100%;
+            height: 75%;
+            border: 0;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
         
     </style>
 </head>
@@ -72,19 +99,24 @@ const char index_html[] PROGMEM = R"rawliteral(
     <h1>Smart Trash Can Dashboard</h1>
         <div class="outer-container">
             <div class="container">
-                <h2 class="text">Fill Level</h2>
+                <h2 class="text" id="header">Fill Level</h2>
                 
                 <p class="text"> <span id="percentage">0</span>%</p>
             </div>
             <div class="container">
-                <h2 class="text">Has GPS?</h2>
+                <h2 class="text" id="header">Has GPS?</h2>
                 
                 <p class="text" id="gps">NO</p>
             </div>
             <div class="container">
-                <h2 class="text">LED Colour</h2>
+                <h2 class="text" id="header">LED Colour</h2>
                 
                 <p class="text" id="led">OFF</p>
+            </div>
+            <div class="container">
+                <h2 class="text" id="header">Location</h2>
+                
+                <iframe src="https://www.google.com/maps?q=43.808805,-79.185833&output=embed" width="100%" height="65%" style="border:0;" allowfullscreen="" loading="lazy" id="location"> </iframe>
             </div>
             
         </div>
@@ -92,6 +124,20 @@ const char index_html[] PROGMEM = R"rawliteral(
         
 
     <script>
+        updateLocation();
+        function updateLocation() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.hasGPS) {
+                        document.getElementById('location').src = data.mapUrl;
+                    } else {
+                        document.getElementById('location').src = '';
+                    }
+                });
+        }
+        setInterval(updateLocation, 60000);
+
         function updateData() {
             fetch('/data')
                 .then(response => response.json())
@@ -124,9 +170,11 @@ const char index_html[] PROGMEM = R"rawliteral(
                             document.getElementById('led').innerText = 'OFF';
                     }
                     
+                    
                 });
         }
-        setInterval(updateData, 500);
+        setInterval(updateData, 250);
+
     </script> 
 </body>
 
