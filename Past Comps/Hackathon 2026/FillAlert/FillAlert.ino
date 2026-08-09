@@ -105,11 +105,11 @@ void handleRoot() {
 }
 
 
-
+// "percentage": "100%"
 // Sends data to webpage
 void handleData() {
   String json = "{";
-  json += "\"percentage\":" + String(percentage) + ",";
+  json += String("\"percentage\":" )  + " \""+ String(percentage , 0) + "%\""+ ",";
   json += "\"hasGPS\":" + String(gpsValid) + ",";
   json += "\"ledColor\":" + String(colorState) + ",";
   json += String("\"mapUrl\":\"https://maps.google.com/maps?q=") + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
