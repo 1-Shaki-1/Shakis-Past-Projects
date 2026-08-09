@@ -74,6 +74,8 @@ TrashState previousColorState = BOARD_BLUE;
 
 const float HEIGHT = 34.0;
 
+bool gpsValid = false;
+
 bool buzzerOn = false;
 const int BEEP_CD = 500;
 
@@ -104,7 +106,11 @@ void handleRoot() {
 
 // Sends data to webpage
 void handleData() {
-  String json = "{\"percentage\": " + String(percentage) + "}";
+  String json = "{";
+  json += "\"percentage\":" + String(percentage) + ",";
+  json += "\"hasGPS\":" + String(gpsValid) + ",";
+  json += "\"ledColor\":" + String(colorState);
+  json += "}";
   server.send(200, "application/json", json);
 }
 
@@ -199,7 +205,6 @@ void loop() {
   updateLEDs();
   updateBuzzer();
   board_flash();
-  // Read GPS stream
 }
 
 
@@ -640,11 +645,14 @@ String getGPSLocation() {
   if (gps.location.isValid()) {
     String lat = String(gps.location.lat(), 6);
     String lng = String(gps.location.lng(), 6);
+    gpsValid = true;
     return lat + ", " + lng;
   } else {
+    gpsValid = false;
     return "No GPS Lock";
   }
 }
+
 
 
 // Turns gps cords to google maps link
