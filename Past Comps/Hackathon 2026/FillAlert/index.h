@@ -56,7 +56,6 @@ const char index_html[] PROGMEM = R"rawliteral(
             width: 88vw;
             height: 64vh;
             justify-content: center;
-            flex-wrap: wrap;
         }
 
         /* Left Column Cards */
@@ -81,6 +80,41 @@ const char index_html[] PROGMEM = R"rawliteral(
             flex: 1;
             box-shadow: 0 0.4vh 0.8vh rgba(0, 0, 0, 0.2);
             color: #ffffff;
+        }
+
+        /* Specialized Layout for Fill Card */
+        .fill-card {
+            flex-direction: column;
+            justify-content: center;
+            align-items: stretch;
+            gap: 1.5vh;
+            padding: 1.5vh 2vw;
+        }
+
+        .fill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Progress Bar Styles */
+        .progress-container {
+            width: 100%;
+            height: 3vh;
+            background-color: #0f172a;
+            border-radius: 1.5vw;
+            border: 0.2vw solid #334155;
+            overflow: hidden;
+            box-shadow: inset 0 0.2vh 0.4vh rgba(0, 0, 0, 0.5);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 100%; /* Default width */
+            background-color: #0080ff; /* Blue color for the fill level */
+            border-radius: 1.3vw;
+            transition: width 0.4s ease-out, background-color 0.4s ease-out;
         }
 
         /* LED Badge Pill */
@@ -136,34 +170,6 @@ const char index_html[] PROGMEM = R"rawliteral(
             height: 100%;
             border: none;
         }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 10px 5px;
-                height: auto;
-                overflow: auto;
-            }
-
-            .dashboard-layout {
-                
-                align-items: flex-start;
-            }
-
-            .left-column,
-            .right-column {
-                width: 100%;
-            }
-
-            .card {
-                font-size: 7.5vw;
-                padding: 10px;
-            }
-            .badge {
-                font-size: 5vw;
-                padding: 5px 10px;
-            }
-
-        }
     </style>
 </head>
 
@@ -175,8 +181,14 @@ const char index_html[] PROGMEM = R"rawliteral(
     <div class="dashboard-layout">
         <!-- Left Column -->
         <div class="left-column">
-            <div class="card">
-                Percentage: <span id="percentage">100.00</span>
+            <div class="card fill-card">
+                <div class="fill-header">
+                    Fill Level
+                    <span id="percentage">0%</span>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
             </div>
             <div class="card">
                 GPS: <span id="gps">Unavailable</span>
@@ -218,6 +230,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             .then(response => response.json())
             .then(data => {
                 document.getElementById('percentage').innerText = data.percentage;
+                document.getElementById('progress-bar').style.width = data.percentage;
                 document.getElementById('gps').innerText = data.hasGPS ? 'YES' : 'NO';
                 switch (data.ledColor) {
                     case 0:
