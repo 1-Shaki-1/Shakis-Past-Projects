@@ -8,7 +8,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <title>Smart Trash Can Dashboard</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
             background-color: #0f172a;
             color: #ffffff;
             margin: 0;
@@ -62,7 +62,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         .left-column {
             display: flex;
             flex-direction: column;
-            gap: 2vh;
+            gap: 1vh;
             width: 36vw;
             height: 100%;
         }
@@ -70,10 +70,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         .card {
             background-color: #1e293b;
             border: 0.35vw solid #334155;
-            border-radius: 1.8vw;
-            padding: 0 2vw;
-            font-size: 1.9vw;
-            font-weight: bold;
+            border-radius: 1.5vw;
+            padding: 0 1.8vw;
+            font-size: 1.4vw;
+
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -87,8 +87,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             flex-direction: column;
             justify-content: center;
             align-items: stretch;
-            gap: 1.5vh;
-            padding: 1.5vh 2vw;
+            gap: 0.8vh;
+            padding: 0.8vh 1.8vw;
         }
 
         .fill-header {
@@ -98,10 +98,44 @@ const char index_html[] PROGMEM = R"rawliteral(
             width: 100%;
         }
 
+        /* Specialized Layout for Height Input Card */
+        .height-card {
+            flex-direction: column;
+            justify-content: center;
+            align-items: stretch;
+            gap: 0.6vh;
+            padding: 0.8vh 1.8vw;
+        }
+
+        .height-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .small-input {
+            width: 100%;
+            background-color: #0f172a;
+            border: 0.2vw solid #334155;
+            border-radius: 0.8vw;
+            color: #ffffff;
+            padding: 0.5vh 0.8vw;
+            font-size: 1vw;
+            font-family: inherit;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        .small-input:focus {
+            border-color: #0080ff;
+        }
+
         /* Progress Bar Styles */
         .progress-container {
             width: 100%;
-            height: 3vh;
+            height: 2vh;
             background-color: #0f172a;
             border-radius: 1.5vw;
             border: 0.2vw solid #334155;
@@ -111,8 +145,10 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         .progress-bar {
             height: 100%;
-            width: 100%; /* Default width */
-            background-color: #0080ff; /* Blue color for the fill level */
+            width: 100%;
+            /* Default width */
+            background-color: #0080ff;
+            /* Blue color for the fill level */
             border-radius: 1.3vw;
             transition: width 0.4s ease-out, background-color 0.4s ease-out;
         }
@@ -121,11 +157,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         .badge {
             background-color: #117000;
             color: #ffffff;
-            padding: 1vh 2vw;
+            padding: 0.4vh 1.2vw;
             border-radius: 1vw;
-            font-size: 1.8vw;
+            font-size: 1.2vw;
             letter-spacing: 0.1vw;
-            font-weight: bold;
         }
 
         /* Right Column (Location Card) */
@@ -181,6 +216,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <div class="dashboard-layout">
         <!-- Left Column -->
         <div class="left-column">
+            <!-- Fill Level -->
             <div class="card fill-card">
                 <div class="fill-header">
                     Fill Level
@@ -190,11 +226,28 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <div class="progress-bar" id="progress-bar"></div>
                 </div>
             </div>
+
+            <!-- GPS -->
             <div class="card">
                 GPS: <span id="gps">Unavailable</span>
             </div>
+
+            <!-- LED Status (Text box removed) -->
             <div class="card">
                 LED Color: <span class="badge" id="led">GREEN</span>
+            </div>
+
+            <!-- Current Trashcan Height Display -->
+            <div class="card">
+                Current Trashcan Height: <span id="current-height">0 cm</span>
+            </div>
+
+            <!-- Enter Trashcan Height Input -->
+            <div class="card height-card">
+                <div class="height-header">
+                    Enter trashcan height
+                </div>
+                <input type="number" class="small-input" id="height-input" placeholder="Height in cm...">
             </div>
         </div>
 
@@ -208,7 +261,6 @@ const char index_html[] PROGMEM = R"rawliteral(
     </div>
 
 </body>
-
 
 <script>
     updateLocation();
@@ -232,6 +284,8 @@ const char index_html[] PROGMEM = R"rawliteral(
                 document.getElementById('percentage').innerText = data.percentage;
                 document.getElementById('progress-bar').style.width = data.percentage;
                 document.getElementById('gps').innerText = data.hasGPS ? 'YES' : 'NO';
+                document.getElementById('current-height').innerText = (data.height || 0) + ' cm';
+
                 switch (data.ledColor) {
                     case 0:
                         document.getElementById('led').style.backgroundColor = '#197500';
@@ -254,15 +308,39 @@ const char index_html[] PROGMEM = R"rawliteral(
                         document.getElementById('led').innerText = 'FINDING WIFI';
                         break;
                     default:
-                        document.getElementById('led').style.backgroundColor = '#1e293b'; // Default background color
+                        document.getElementById('led').style.backgroundColor = '#1e293b';
                         document.getElementById('led').innerText = 'OFF';
                 }
-
-
             });
     }
     setInterval(updateData, 250);
 
+
+    const heightInput = document.getElementById('height-input');
+
+    heightInput.addEventListener('keypress', function (event) {
+        if (event.key === 'Enter') {
+            const newHeight = parseFloat(heightInput.value);
+
+            if (!isNaN(newHeight) && newHeight > 0) {
+                sendHeightToServer(newHeight);
+                heightInput.value = ' '; // Clear input box after sending
+            }
+        }
+    });
+
+    function sendHeightToServer(height) {
+        fetch('/set-height', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ height: height })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Server updated height:', data);
+            })
+            .catch(err => console.error('Failed to update height:', err));
+    }
 </script>
 
 </html>

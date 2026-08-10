@@ -12,10 +12,12 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <WebServer.h>
-#include "index.h"
+#include <ArduinoJson.h> // JSON library
+#include <index.h>
+
 WebServer server(80);
 
-//  GLOBAL HANDLES & VARIABLES
+// GLOBAL HANDLES & VARIABLES
 TaskHandle_t emailTaskHandle = NULL;
 volatile bool sendEmailRequest = false;
 
@@ -25,20 +27,20 @@ String emailAddress;
 String emailDate;
 String emailTime;
 
-//  PINS CONFIGURATION  
+// PINS CONFIGURATION
 // GPS Pins (UART1)
-const int GPS_RX = 23;  // Connect to GPS TX
-const int GPS_TX = 5;   // Connect to GPS RX
+const int GPS_RX = 23;  // GPS TX
+const int GPS_TX = 5;   // GPS RX
 
-// Distance Sensor Pins (UART2)
-const int SONAR_RX = 18;  // Yellow Wire (Sensor TX -> ESP32 RX)
-const int SONAR_TX = 19;  // White Wire  (Sensor RX -> ESP32 TX)
+// Sensor Pins (UART2)
+const int SONAR_RX = 18;  // Sensor TX -> ESP32 RX
+const int SONAR_TX = 19;  // Sensor RX -> ESP32 TX
 
 // MPU6050 Pins (I2C)
 const int MPU_SDA = 21;
 const int MPU_SCL = 22;
 
-// RGB LED Pins (0 = OFF, 255 = ON)
+// RGB LED Pins
 const int LED_PINR = 25;
 const int LED_PING = 26;
 const int LED_PINB = 27;
@@ -48,7 +50,6 @@ const int ONBOARD_LED = 2;
 
 // Buzzer Pin
 const int BUZZER_PIN = 13;
-
 
 TinyGPSPlus gps;
 HardwareSerial GPSSerial(1);
@@ -68,11 +69,11 @@ enum TrashState {
   BOARD_BLUE
 };
 
-
 TrashState colorState = BOARD_BLUE;
 TrashState previousColorState = BOARD_BLUE;
 
-const float HEIGHT = 34.0;
+// Height in cm
+float currentBinHeight = 34.0;
 
 bool gpsValid = false;
 
@@ -80,11 +81,16 @@ bool buzzerOn = false;
 const int BEEP_CD = 500;
 
 long distance = 999;    // Initial distance
-double percentage = 0;  // Percent calculated
+double percentage = 0;  // Calculated percentage
 
-const double RED_THRESHOLD = ((HEIGHT - 5.0) / HEIGHT) * 100.0;
-const double YELLOW_THRESHOLD = ((HEIGHT - 10.0) / HEIGHT) * 100.0;
-const double GREEN_THRESHOLD = YELLOW_THRESHOLD - 5.0;
+// Dynamic threshold helpers
+double getRedThreshold() {
+  return ((currentBinHeight - 5.0) / currentBinHeight) * 100.0;
+}
+
+double getYellowThreshold() {
+  return ((currentBinHeight - 10.0) / currentBinHeight) * 100.0;
+}
 
 bool isConnected = false;
 
@@ -98,45 +104,59 @@ int badReadings = 0;
 
 unsigned long sensorTimer = 0;
 
-// Sends message to webpage 
+// Send HTML page
 void handleRoot() {
-
   server.send(200, "text/html", index_html);
 }
 
-
-// "percentage": "100%"
-// Sends data to webpage
+// Send telemetry JSON
 void handleData() {
   String json = "{";
-  json += String("\"percentage\":" )  + " \""+ String(percentage , 0) + "%\""+ ",";
+  json += String("\"percentage\":") + " \"" + String(percentage, 0) + "%\"" + ",";
   json += "\"hasGPS\":" + String(gpsValid) + ",";
   json += "\"ledColor\":" + String(colorState) + ",";
+  json += "\"height\":" + String(currentBinHeight, 1) + ","; // Return current height
   json += String("\"mapUrl\":\"https://maps.google.com/maps?q=") + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
-  
   json += "}";
   server.send(200, "application/json", json);
 }
 
-// Initializes hardware components, tasks, and Blynk.
+// Handle POST height request
+void handleSetHeight() {
+  if (server.hasArg("plain")) {
+    String body = server.arg("plain");
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, body);
+
+    if (!error && doc.containsKey("height")) {
+      float newHeight = doc["height"].as<float>();
+      if (newHeight > 0) {
+        currentBinHeight = newHeight;
+        Serial.print("Updated trashcan height to: ");
+        Serial.print(currentBinHeight);
+        Serial.println(" cm");
+
+        server.send(200, "application/json", "{\"status\":\"success\"}");
+        return;
+      }
+    }
+  }
+  server.send(400, "application/json", "{\"status\":\"error\"}");
+}
+
+// Initialize hardware, tasks, Blynk
 void setup() {
   Serial.begin(115200);
 
-  // Initialize GPS on UART1
   GPSSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
-
-  // Initialize Distance Sensor on UART2
   SonarSerial.begin(9600, SERIAL_8N1, SONAR_RX, SONAR_TX);
 
-  // Initialize MPU6050 on I2C
   Wire.begin(MPU_SDA, MPU_SCL);
   if (!mpu.begin()) {
     Serial.println(F("Warning: MPU6050 not detected!"));
   } else {
     Serial.println(F("MPU6050 Initialized successfully!"));
   }
-
-  
 
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(LED_PINR, OUTPUT);
@@ -153,7 +173,6 @@ void setup() {
 
   Serial.println(F("Starting System..."));
 
-  // Non-blocking WiFi & Blynk setup
   WiFi.begin(ssid, password);
   Blynk.config(BLYNK_AUTH_TOKEN);
 
@@ -161,10 +180,10 @@ void setup() {
   setenv("TZ", "EST5EDT,M3.2.0,M11.1.0", 1);
   tzset();
 
-  Serial.print(F("Calculated Red Threshold %: "));
-  Serial.println(RED_THRESHOLD);
-  Serial.print(F("Calculated Yellow Threshold %: "));
-  Serial.println(YELLOW_THRESHOLD);
+  Serial.print(F("Initial Red Threshold %: "));
+  Serial.println(getRedThreshold());
+  Serial.print(F("Initial Yellow Threshold %: "));
+  Serial.println(getYellowThreshold());
 
   xTaskCreatePinnedToCore(
     emailTask,
@@ -184,14 +203,15 @@ void setup() {
     &LEDTaskHandle,
     1);
 
-    server.on("/", handleRoot);
-    server.on("/data", handleData);
-    
-    server.begin();
+  // Register HTTP routes
+  server.on("/", handleRoot);
+  server.on("/data", handleData);
+  server.on("/set-height", HTTP_POST, handleSetHeight);
+
+  server.begin();
 }
 
-
-// Runs main loop processing sensor streams.
+// Main loop
 void loop() {
   handleConnection();
 
@@ -202,8 +222,6 @@ void loop() {
     updateBlynk();
     handleNotifications();
     server.handleClient();
-    
-  
   }
 
   updateLEDs();
@@ -211,8 +229,7 @@ void loop() {
   board_flash();
 }
 
-
-// Maintains WiFi and Blynk cloud connection without blocking loop.
+// Maintain WiFi and Blynk
 void handleConnection() {
   isConnected = (WiFi.status() == WL_CONNECTED);
 
@@ -238,8 +255,7 @@ void handleConnection() {
   }
 }
 
-
-// Updates distance and percentage readings periodically.
+// Update sensor readings
 void updateSensor() {
   if (millis() - sensorTimer > 250) {
     sensorTimer = millis();
@@ -249,17 +265,16 @@ void updateSensor() {
   }
 }
 
-
-// Converts distance measurement into fill percentage.
+// Convert distance to percentage
 double getPercentage(long distance) {
-  double percentage = ((HEIGHT - distance) / HEIGHT) * 100.0;
-  if (percentage < 0) percentage = 0;
-  if (percentage > 100) percentage = 100;
-  return percentage;
+  if (currentBinHeight <= 0) return 0;
+  double pct = ((currentBinHeight - distance) / currentBinHeight) * 100.0;
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  return pct;
 }
 
-
-// Reads raw distance from ultrasonic sensor.
+// Read distance from sensor
 long readDistance() {
   static uint8_t buffer[4];
 
@@ -282,8 +297,7 @@ long readDistance() {
   return 999;
 }
 
-
-// Calculates average from five distance readings.
+// Average five readings
 long getAverageDistance() {
   long total = 0;
   int count = 0;
@@ -300,8 +314,7 @@ long getAverageDistance() {
   return total / count;
 }
 
-
-// Determines bin status from calculated percentage.
+// Update state from percentage
 void updateTrashState() {
   if (!isConnected) {
     colorState = BOARD_BLUE;
@@ -314,22 +327,21 @@ void updateTrashState() {
   } else {
     badReadings = 0;
     if (colorState != RED) {
-      if (percentage >= RED_THRESHOLD) {
+      if (percentage >= getRedThreshold()) {
         colorState = RED;
-      } else if (percentage >= YELLOW_THRESHOLD) {
+      } else if (percentage >= getYellowThreshold()) {
         colorState = YELLOW;
       } else {
         colorState = GREEN;
       }
     } else {
-      if (percentage < RED_THRESHOLD - 5)
+      if (percentage < getRedThreshold() - 5)
         colorState = YELLOW;
     }
   }
 }
 
-
-// Pushes updated measurements to Blynk dashboard.
+// Send data to Blynk
 void updateBlynk() {
   if (millis() - blynkTimer > 250) {
     blynkTimer = millis();
@@ -344,18 +356,19 @@ void updateBlynk() {
     Serial.print(distance);
     Serial.print(F(" Pct="));
     Serial.print(percentage);
+    Serial.print(F(" Height="));
+    Serial.print(currentBinHeight);
     Serial.print(F(" State="));
     Serial.print(colorState);
     Serial.print(" IP ADDRESS ");
     Serial.print(WiFi.localIP());
     Serial.print(" GPS: ");
     Serial.print(getGPSLocation());
-    Serial.println (" ");
+    Serial.println(" ");
   }
 }
 
-
-// Triggers Blynk events and email alerts.
+// Handle full notifications
 void handleNotifications() {
   if (isConnected && colorState == RED) {
     if (!fullNotificationSent) {
@@ -385,8 +398,7 @@ void handleNotifications() {
   }
 }
 
-
-// Selects active color based on state.
+// Set RGB LED colors
 void updateLEDs() {
   switch (colorState) {
     case GREEN:
@@ -405,40 +417,35 @@ void updateLEDs() {
   }
 }
 
-
-// Turns all RGB channels completely off.
+// Turn LEDs off
 void ledsOff() {
   analogWrite(LED_PINR, 0);
   analogWrite(LED_PING, 0);
   analogWrite(LED_PINB, 0);
 }
 
-
-// Illuminates the green LED channel only.
+// Set LED to green
 void greenFlash() {
   analogWrite(LED_PINR, 0);
   analogWrite(LED_PING, 255);
   analogWrite(LED_PINB, 0);
 }
 
-
-// Blends red and green channels for yellow.
+// Set LED to yellow
 void yellowFlash() {
   analogWrite(LED_PINR, 255);
   analogWrite(LED_PING, 255);
   analogWrite(LED_PINB, 0);
 }
 
-
-// Illuminates the red LED channel only.
+// Set LED to red
 void redFlash() {
   analogWrite(LED_PINR, 255);
   analogWrite(LED_PING, 0);
   analogWrite(LED_PINB, 0);
 }
 
-
-// Handles pulsing the onboard LED when disconnected from WiFi.
+// Pulse onboard LED offline
 void board_flash() {
   const long cd = 10;
   static unsigned long currentMillis = 0;
@@ -468,8 +475,7 @@ void board_flash() {
   }
 }
 
-
-// Fades external blue LED during sensor error state.
+// Flash blue on error
 void sensorErrorFlash(void* parameter) {
   int localFade = 0;
   int localDirection = 5;
@@ -496,8 +502,7 @@ void sensorErrorFlash(void* parameter) {
   }
 }
 
-
-// Drives buzzer activity during full state.
+// Update buzzer state
 void updateBuzzer() {
   if (colorState == RED) {
     beepFull();
@@ -507,8 +512,7 @@ void updateBuzzer() {
   }
 }
 
-
-// Beeps buzzer when bin is full.
+// Beep when full
 void beepFull() {
   if (!buzzerOn) {
     if (millis() - beepTimer > BEEP_CD) {
@@ -525,8 +529,7 @@ void beepFull() {
   }
 }
 
-
-// Encodes strings into valid URL formats.
+// Encode URL string
 String urlencode(String str) {
   String encoded = "";
   char c;
@@ -558,8 +561,7 @@ String urlencode(String str) {
   return encoded;
 }
 
-
-// Sends full alert email via HTTP endpoint.
+// Send alert email
 void sendEmail(String address, String date, String time) {
   WiFiClientSecure client;
   client.setInsecure();
@@ -588,8 +590,7 @@ void sendEmail(String address, String date, String time) {
   http.end();
 }
 
-
-// Manages background task for email requests.
+// Background email task
 void emailTask(void* parameter) {
   while (true) {
     if (sendEmailRequest) {
@@ -597,9 +598,7 @@ void emailTask(void* parameter) {
 
       Serial.println("EMAIL TASK STARTED");
 
-      sendEmail(getMapLink(),
-                emailDate,
-                emailTime);
+      sendEmail(getMapLink(), emailDate, emailTime);
 
       Serial.println("EMAIL TASK FINISHED");
     }
@@ -608,8 +607,7 @@ void emailTask(void* parameter) {
   }
 }
 
-
-// Returns formatted string containing current time.
+// Format date and time
 String getDateTime() {
   struct tm timeinfo;
 
@@ -622,30 +620,24 @@ String getDateTime() {
   return String(buffer);
 }
 
-
-// Reads GPS stream and prints location.
+// Update GPS data
 void updateGPS() {
-  // Feed raw characters to parser.
   while (GPSSerial.available() > 0) {
     gps.encode(GPSSerial.read());
   }
 
-  // Print data when position updates.
   if (gps.location.isUpdated()) {
     float latitude = gps.location.lat();
     float longitude = gps.location.lng();
   }
 }
 
-
-// Returns formatted location string.
+// Get GPS location string
 String getGPSLocation() {
-  // Parse waiting serial bytes.
   while (GPSSerial.available() > 0) {
     gps.encode(GPSSerial.read());
   }
 
-  // Check for valid fix.
   if (gps.location.isValid()) {
     String lat = String(gps.location.lat(), 6);
     String lng = String(gps.location.lng(), 6);
@@ -657,19 +649,13 @@ String getGPSLocation() {
   }
 }
 
-
-
-// Turns gps cords to google maps link
+// Build Google Maps URL
 String getMapLink() {
-
   if (!gps.location.isValid()) {
     return "No GPS Lock";
   }
 
   String LATITUDE = String(gps.location.lat(), 6);
   String LONGITUDE = String(gps.location.lng(), 6);
-  String link = "https://maps.google.com/?q=" + LATITUDE + "," + LONGITUDE + "";
-  return link;
+  return "https://maps.google.com/?q=" + LATITUDE + "," + LONGITUDE;
 }
-
-
