@@ -27,7 +27,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         /* Main Title */
         .main-title {
-            font-size: clamp(1.8rem, 3.2vw, 3.2rem);
+            font-size: clamp(2.2vh, 3.2vw, 5vh);
             font-weight: bold;
             background-color: #1e293b;
             padding: 1.8vh 3vw;
@@ -41,7 +41,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         /* Subtitle Banner */
         .subtitle {
-            font-size: clamp(1rem, 1.5vw, 1.5rem);
+            font-size: clamp(1.6vh, 1.5vw, 3vh);
             background-color: #1e293b;
             padding: 1.2vh 2.5vw;
             border-radius: 1.5vw;
@@ -51,12 +51,11 @@ const char index_html[] PROGMEM = R"rawliteral(
             color: #f8fafc;
         }
 
-        /* Dashboard Grid Layout */
+        /* Dashboard Layout */
         .dashboard-layout {
             display: flex;
             gap: 2vw;
             width: 88vw;
-            max-width: 1400px;
             justify-content: center;
         }
 
@@ -73,7 +72,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             border: 0.35vw solid #334155;
             border-radius: 1.5vw;
             padding: 1.5vh 1.8vw;
-            font-size: clamp(0.9rem, 1.4vw, 1.4rem);
+            font-size: clamp(1.5vh, 1.4vw, 2.5vh);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -117,12 +116,12 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         /* System Health Section Header */
         .section-header {
-            font-size: clamp(1rem, 1.3vw, 1.3rem);
+            font-size: clamp(1.4vh, 1.3vw, 2.2vh);
             font-weight: bold;
             color: #94a3b8;
             text-transform: uppercase;
             letter-spacing: 0.08vw;
-            border-bottom: 0.15vw solid #334155;
+            border-bottom: 0.2vh solid #334155;
             padding-bottom: 0.6vh;
             margin-bottom: 0.4vh;
         }
@@ -150,7 +149,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             border-radius: 0.8vw;
             color: #ffffff;
             padding: 0.8vh 0.8vw;
-            font-size: clamp(0.9rem, 1vw, 1rem);
+            font-size: clamp(1.4vh, 1vw, 2vh);
             font-family: inherit;
             box-sizing: border-box;
             outline: none;
@@ -165,7 +164,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         .progress-container {
             width: 100%;
             height: 2vh;
-            min-height: 14px;
+            min-height: 1.8vh;
             background-color: #0f172a;
             border-radius: 1.5vw;
             border: 0.2vw solid #334155;
@@ -187,7 +186,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             color: #ffffff;
             padding: 0.4vh 1.2vw;
             border-radius: 1vw;
-            font-size: clamp(0.8rem, 1.1vw, 1.1rem);
+            font-size: clamp(1.3vh, 1.1vw, 2vh);
             letter-spacing: 0.08vw;
             font-weight: bold;
         }
@@ -195,7 +194,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         /* Right Column (Location Card) */
         .right-column {
             width: 50vw;
-            min-height: 450px;
+            min-height: 55vh;
             background-color: #1e293b;
             border: 0.35vw solid #334155;
             border-radius: 1.8vw;
@@ -209,7 +208,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         .location-header {
-            font-size: clamp(1.2rem, 1.8vw, 1.8vw);
+            font-size: clamp(1.8vh, 1.8vw, 3vh);
             font-weight: bold;
             text-align: center;
             padding: 1.5vh;
@@ -227,7 +226,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            min-height: 300px;
+            min-height: 38vh;
         }
 
         .map-container iframe {
@@ -239,24 +238,25 @@ const char index_html[] PROGMEM = R"rawliteral(
         /* Mobile Responsive Breakpoint */
         @media (max-width: 768px) {
             body {
-                width: 100%;
-                overflow-x: hidden;
+                width: 100vw;
+                padding-top: 1.5vh;
             }
 
             .main-title {
-                font-size: 6vw;
+                font-size: clamp(2.2vh, 5.5vw, 4vh);
                 width: 90vw;
                 border-radius: 3vw;
-                border-width: 0.5vw;
-                padding: 2vh 0;
+                border-width: 0.6vw;
+                padding: 1.5vh 0;
             }
 
             .subtitle {
-                font-size: 3.5vw;
+                font-size: clamp(1.6vh, 3.5vw, 3vh);
                 width: 90vw;
                 border-radius: 3vw;
-                border-width: 0.5vw;
-                padding: 1.5vh 0;
+                border-width: 0.6vw;
+                padding: 1.2vh 0;
+                margin-bottom: 2vh;
             }
 
             .dashboard-layout {
@@ -267,49 +267,62 @@ const char index_html[] PROGMEM = R"rawliteral(
 
             .left-column {
                 width: 100%;
+                gap: 1.5vh;
             }
 
             .right-column {
                 width: 100%;
-                height: 400px;
+                height: 45vh;
+                min-height: 35vh;
                 border-radius: 3vw;
-                border-width: 0.5vw;
+                border-width: 0.6vw;
+                padding: 1.5vh;
             }
 
             .card {
                 width: 100%;
-                font-size: 4vw;
+                font-size: clamp(1.6vh, 3.8vw, 2.5vh);
                 border-radius: 3vw;
-                border-width: 0.5vw;
-                padding: 2vh 4vw;
-                min-height: 60px;
+                border-width: 0.6vw;
+                padding: 1.8vh 4vw;
+                min-height: 7vh;
             }
 
             .small-input {
-                font-size: 3.5vw;
+                font-size: clamp(1.6vh, 3.5vw, 2.2vh);
                 padding: 1.2vh 2vw;
                 border-radius: 2vw;
-                border-width: 0.3vw;
+                border-width: 0.4vw;
             }
 
             .badge {
-                font-size: 3.5vw;
-                padding: 0.5vh 2vw;
+                font-size: clamp(1.4vh, 3.2vw, 2vh);
+                padding: 0.6vh 2.5vw;
                 border-radius: 2vw;
             }
 
             .section-header {
-                font-size: 3.8vw;
+                font-size: clamp(1.5vh, 3.6vw, 2.2vh);
+                border-bottom-width: 0.25vh;
             }
 
             .location-header {
+                font-size: clamp(1.8vh, 4vw, 2.8vh);
                 border-radius: 2vw;
-                border-width: 0.4vw;
+                border-width: 0.5vw;
+                padding: 1vh;
             }
 
             .map-container {
                 border-radius: 2vw;
-                border-width: 0.4vw;
+                border-width: 0.5vw;
+                min-height: 25vh;
+            }
+
+            .progress-container {
+                height: 2.2vh;
+                border-radius: 2vw;
+                border-width: 0.3vw;
             }
         }
     </style>
@@ -399,12 +412,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         fetch('/data')
             .then(response => response.json())
             .then(data => {
-                if (data.hasGPS) {
+                if (data.hasGPS && data.mapUrl && data.mapUrl !== "") {
                     document.getElementById('location').src = data.mapUrl;
                 } else {
-                    document.getElementById('location').src = '';
+                    document.getElementById('location').src = 'about:blank';
                 }
-            });
+            })
+            .catch(err => console.error('Error updating location:', err));
     }
     setInterval(updateLocation, 10000);
 
@@ -420,8 +434,20 @@ const char index_html[] PROGMEM = R"rawliteral(
                 // System Health Status Logic
                 updateBadge('esp32-status', data.esp32Status, 'ONLINE', 'OFFLINE');
                 updateBadge('ultrasonic-status', data.ultrasonicStatus, 'ONLINE', 'OFFLINE');
-                updateBadge('gps-status', data.hasGPS ? true : data.gpsStatus, 'ONLINE', 'OFFLINE');
                 updateBadge('wifi-status', data.wifiStatus !== undefined ? data.wifiStatus : true, 'CONNECTED', 'DISCONNECTED');
+
+                // Dedicated GPS Status Badge Logic
+                const gpsBadge = document.getElementById('gps-status');
+                if (data.gpsStatus === "checking for satellites" || data.gpsStatus === "SEARCHING") {
+                    gpsBadge.innerText = 'SEARCHING';
+                    gpsBadge.style.backgroundColor = '#a9ac00'; // Yellow
+                } else if (data.hasGPS || data.gpsStatus === "ONLINE") {
+                    gpsBadge.innerText = 'ONLINE';
+                    gpsBadge.style.backgroundColor = '#197500'; // Green
+                } else {
+                    gpsBadge.innerText = 'OFFLINE';
+                    gpsBadge.style.backgroundColor = '#ac0000'; // Red
+                }
 
                 // Collection Status Logic
                 const collectionBadge = document.getElementById('collection-status');
@@ -466,7 +492,8 @@ const char index_html[] PROGMEM = R"rawliteral(
                         document.getElementById('led').style.backgroundColor = '#1e293b';
                         document.getElementById('led').innerText = 'OFF';
                 }
-            });
+            })
+            .catch(err => console.error('Error updating data:', err));
     }
 
     function updateBadge(id, isHealthy, activeText, inactiveText) {

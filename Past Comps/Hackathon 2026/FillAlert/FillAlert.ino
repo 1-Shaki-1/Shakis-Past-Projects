@@ -12,7 +12,7 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <WebServer.h>
-#include <ArduinoJson.h> // JSON library
+#include <ArduinoJson.h>  // JSON library
 #include <index.h>
 
 WebServer server(80);
@@ -28,8 +28,6 @@ String emailDate;
 String emailTime;
 
 String url = "https://script.google.com/macros/s/AKfycbzauEF7aP8uP3ZqOLGqv1ytd_-U0fHIB0qkS7nX2VDVlA2euF6D32Cr5Shb_IYMfZU/exec?";
-
-
 
 // PINS CONFIGURATION
 // GPS Pins (UART1)
@@ -80,6 +78,8 @@ TrashState previousColorState = BOARD_BLUE;
 float currentBinHeight = 34.0;
 
 bool gpsValid = false;
+bool locationValid = false;
+unsigned long lastGpsByteTime = 0;  // GPS byte timestamp
 
 bool buzzerOn = false;
 const int BEEP_CD = 500;
@@ -115,26 +115,43 @@ void handleRoot() {
 
 // Send telemetry JSON
 void handleData() {
-  
+
   String esp32Status = "ONLINE";
   String ultrasonicStatus = (distance > 0 && distance < 400) ? "ONLINE" : "OFFLINE";
-  String gpsStatus = gpsValid ? "ONLINE" : "OFFLINE";
   String wifiStatus = (WiFi.status() == WL_CONNECTED) ? "CONNECTED" : "DISCONNECTED";
+
+  // Detailed GPS status check
+  String gpsStatus;
+  if (!gpsValid) {
+    gpsStatus = "OFFLINE";
+  } else if (!locationValid) {
+    gpsStatus = "checking for satellites";
+  } else {
+    gpsStatus = "ONLINE";
+  }
+
   // Current readings of data
   String json = "{";
   json += "\"percentage\":\"" + String(percentage, 0) + "%\",";
-  json += "\"hasGPS\":" + String(gpsValid ? "true" : "false") + ",";
+  json += "\"hasGPS\":" + String(locationValid ? "true" : "false") + ",";
+  json += "\"gpsLocation\":\"" + getGPSLocation() + "\","; // Returns coordinates or searching status
   json += "\"ledColor\":" + String(colorState) + ",";
   json += "\"distance\":" + String(distance) + ",";
   json += "\"height\":" + String(currentBinHeight, 1) + ",";
-  
+
   // System Health fields
   json += "\"esp32Status\":\"" + esp32Status + "\",";
   json += "\"ultrasonicStatus\":\"" + ultrasonicStatus + "\",";
   json += "\"gpsStatus\":\"" + gpsStatus + "\",";
   json += "\"wifiStatus\":\"" + wifiStatus + "\",";
-  
-  json += "\"mapUrl\":\"https://maps.google.com/maps?q=" + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
+
+  // Send map URL if locked
+  if (locationValid) {
+    json += "\"mapUrl\":\"https://maps.google.com/maps?q=" + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
+  } else {
+    json += "\"mapUrl\":\"\"";
+  }
+
   json += "}";
 
   server.send(200, "application/json", json);
@@ -252,7 +269,7 @@ void loop() {
   board_flash();
 }
 
-// Maintain WiFi and Blynk
+// Maintain WiFi
 void handleConnection() {
   isConnected = (WiFi.status() == WL_CONNECTED);
 
@@ -263,17 +280,6 @@ void handleConnection() {
       reconnectTimer = millis();
       WiFi.disconnect();
       WiFi.begin(ssid, password);
-    }
-  } else {
-    if (Blynk.connected()) {
-      Blynk.run();
-    } else {
-      static unsigned long lastBlynkConnect = 0;
-
-      if (millis() - lastBlynkConnect > 10000) {
-        lastBlynkConnect = millis();
-        Blynk.connect();
-      }
     }
   }
 }
@@ -583,6 +589,7 @@ String urlencode(String str) {
 
   return encoded;
 }
+
 // Send Starting email
 void sendLinkEmail(String link) {
   WiFiClientSecure client;
@@ -593,7 +600,7 @@ void sendLinkEmail(String link) {
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.begin(client, temp_url);
   http.setTimeout(5000);
-   int code = http.GET();
+  int code = http.GET();
 
   Serial.print(F("HTTP Code: "));
   Serial.println(code);
@@ -605,7 +612,7 @@ void sendLinkEmail(String link) {
 }
 
 String getDashBoardLink() {
-  String link =  "http://" + WiFi.localIP().toString();
+  String link = "http://" + WiFi.localIP().toString();
   return link;
 }
 
@@ -615,9 +622,8 @@ void sendEmail(String address, String date, String time) {
   client.setInsecure();
 
   HTTPClient http;
+  // Construct URL query string
   String temp_url = url + "address=" + urlencode(address);
-  
-  temp_url += "address=" + urlencode(address);
   temp_url += "&status=" + urlencode("FULL");
   temp_url += "&date=" + urlencode(date);
   temp_url += "&time=" + urlencode(time);
@@ -667,39 +673,42 @@ String getDateTime() {
   return String(buffer);
 }
 
-// Update GPS data
+// Update GPS data and states
 void updateGPS() {
+  // Read serial bytes and timestamp
   while (GPSSerial.available() > 0) {
     gps.encode(GPSSerial.read());
+    lastGpsByteTime = millis();
   }
 
-  if (gps.location.isUpdated()) {
-    float latitude = gps.location.lat();
-    float longitude = gps.location.lng();
-  }
+  // Check physical UART timeout
+  gpsValid = (millis() - lastGpsByteTime < 3000) && (lastGpsByteTime > 0);
+
+  // Check for position lock
+  locationValid = gpsValid && gps.location.isValid() && (gps.location.age() < 2000);
 }
 
 // Get GPS location string
 String getGPSLocation() {
-  while (GPSSerial.available() > 0) {
-    gps.encode(GPSSerial.read());
+  // Check physical connection
+  if (!gpsValid) {
+    return "OFFLINE"; // Module offline or miswired
   }
 
-  if (gps.location.isValid()) {
+  // Return coordinates if locked
+  if (locationValid) {
     String lat = String(gps.location.lat(), 6);
     String lng = String(gps.location.lng(), 6);
-    gpsValid = true;
-    return lat + ", " + lng;
-  } else {
-    gpsValid = false;
-    return "No GPS Lock";
+    return lat + ", " + lng; // GPS locked
   }
+
+  return "checking for satellites"; // Searching status
 }
 
 // Build Google Maps URL
 String getMapLink() {
-  if (!gps.location.isValid()) {
-    return "No GPS Lock";
+  if (!locationValid) {
+    return "checking for satellites"; // Map URL searching fallback
   }
 
   String LATITUDE = String(gps.location.lat(), 6);
