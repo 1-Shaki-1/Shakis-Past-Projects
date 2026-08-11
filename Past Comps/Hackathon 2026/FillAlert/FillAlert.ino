@@ -27,6 +27,10 @@ String emailAddress;
 String emailDate;
 String emailTime;
 
+String url = "https://script.google.com/macros/s/AKfycbzauEF7aP8uP3ZqOLGqv1ytd_-U0fHIB0qkS7nX2VDVlA2euF6D32Cr5Shb_IYMfZU/exec?";
+
+
+
 // PINS CONFIGURATION
 // GPS Pins (UART1)
 const int GPS_RX = 23;  // GPS TX
@@ -91,7 +95,7 @@ double getRedThreshold() {
 double getYellowThreshold() {
   return ((currentBinHeight - 10.0) / currentBinHeight) * 100.0;
 }
-
+bool emailAlreadySent = false;
 bool isConnected = false;
 
 unsigned long beepTimer = 0;
@@ -222,6 +226,10 @@ void loop() {
     updateBlynk();
     handleNotifications();
     server.handleClient();
+    if (!emailAlreadySent) {
+      sendLinkEmail(getDashBoardLink());
+      emailAlreadySent = true;
+    }
   }
 
   updateLEDs();
@@ -560,6 +568,31 @@ String urlencode(String str) {
 
   return encoded;
 }
+// Send Starting email
+void sendLinkEmail(String link) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+
+  String temp_url = url + "link=" + urlencode(link);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.begin(client, temp_url);
+  http.setTimeout(5000);
+   int code = http.GET();
+
+  Serial.print(F("HTTP Code: "));
+  Serial.println(code);
+
+  if (code > 0)
+    Serial.println(http.getString());
+
+  http.end();
+}
+
+String getDashBoardLink() {
+  String link =  "http://" + WiFi.localIP().toString();
+  return link;
+}
 
 // Send alert email
 void sendEmail(String address, String date, String time) {
@@ -567,17 +600,16 @@ void sendEmail(String address, String date, String time) {
   client.setInsecure();
 
   HTTPClient http;
+  String temp_url = url + "address=" + urlencode(address);
+  
+  temp_url += "address=" + urlencode(address);
+  temp_url += "&status=" + urlencode("FULL");
+  temp_url += "&date=" + urlencode(date);
+  temp_url += "&time=" + urlencode(time);
 
-  String url = "https://script.google.com/macros/s/AKfycbzauEF7aP8uP3ZqOLGqv1ytd_-U0fHIB0qkS7nX2VDVlA2euF6D32Cr5Shb_IYMfZU/exec?";
-
-  url += "address=" + urlencode(address);
-  url += "&status=" + urlencode("FULL");
-  url += "&date=" + urlencode(date);
-  url += "&time=" + urlencode(time);
-
-  Serial.println(url);
+  Serial.println(temp_url);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.begin(client, url);
+  http.begin(client, temp_url);
   http.setTimeout(5000);
   int code = http.GET();
 
