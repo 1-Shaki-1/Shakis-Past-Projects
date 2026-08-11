@@ -12,20 +12,22 @@ const char index_html[] PROGMEM = R"rawliteral(
             background-color: #0f172a;
             color: #ffffff;
             margin: 0;
-            height: 100vh;
+            min-height: 100vh;
             width: 100vw;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
             padding-top: 2vh;
+            padding-bottom: 4vh;
             box-sizing: border-box;
         }
 
         /* Main Title */
         .main-title {
-            font-size: 3.2vw;
+            font-size: clamp(1.8rem, 3.2vw, 3.2rem);
             font-weight: bold;
             background-color: #1e293b;
             padding: 1.8vh 3vw;
@@ -39,7 +41,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         /* Subtitle Banner */
         .subtitle {
-            font-size: 1.5vw;
+            font-size: clamp(1rem, 1.5vw, 1.5rem);
             background-color: #1e293b;
             padding: 1.2vh 2.5vw;
             border-radius: 1.5vw;
@@ -54,7 +56,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             display: flex;
             gap: 2vw;
             width: 88vw;
-            height: 64vh;
+            max-width: 1400px;
             justify-content: center;
         }
 
@@ -62,24 +64,23 @@ const char index_html[] PROGMEM = R"rawliteral(
         .left-column {
             display: flex;
             flex-direction: column;
-            gap: 1vh;
+            gap: 1.5vh;
             width: 36vw;
-            height: 100%;
         }
 
         .card {
             background-color: #1e293b;
             border: 0.35vw solid #334155;
             border-radius: 1.5vw;
-            padding: 0 1.8vw;
-            font-size: 1.4vw;
-
+            padding: 1.5vh 1.8vw;
+            font-size: clamp(0.9rem, 1.4vw, 1.4rem);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            flex: 1;
+            min-height: 7vh;
             box-shadow: 0 0.4vh 0.8vh rgba(0, 0, 0, 0.2);
             color: #ffffff;
+            box-sizing: border-box;
         }
 
         /* Specialized Layout for Fill Card */
@@ -88,7 +89,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             justify-content: center;
             align-items: stretch;
             gap: 0.8vh;
-            padding: 0.8vh 1.8vw;
+            padding: 1.2vh 1.8vw;
         }
 
         .fill-header {
@@ -104,7 +105,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             justify-content: center;
             align-items: stretch;
             gap: 0.6vh;
-            padding: 0.8vh 1.8vw;
+            padding: 1.2vh 1.8vw;
         }
 
         .height-header {
@@ -120,8 +121,8 @@ const char index_html[] PROGMEM = R"rawliteral(
             border: 0.2vw solid #334155;
             border-radius: 0.8vw;
             color: #ffffff;
-            padding: 0.5vh 0.8vw;
-            font-size: 1vw;
+            padding: 0.8vh 0.8vw;
+            font-size: clamp(0.9rem, 1vw, 1rem);
             font-family: inherit;
             box-sizing: border-box;
             outline: none;
@@ -136,6 +137,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         .progress-container {
             width: 100%;
             height: 2vh;
+            min-height: 14px;
             background-color: #0f172a;
             border-radius: 1.5vw;
             border: 0.2vw solid #334155;
@@ -145,10 +147,8 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         .progress-bar {
             height: 100%;
-            width: 100%;
-            /* Default width */
+            width: 0%;
             background-color: #0080ff;
-            /* Blue color for the fill level */
             border-radius: 1.3vw;
             transition: width 0.4s ease-out, background-color 0.4s ease-out;
         }
@@ -159,14 +159,14 @@ const char index_html[] PROGMEM = R"rawliteral(
             color: #ffffff;
             padding: 0.4vh 1.2vw;
             border-radius: 1vw;
-            font-size: 1.2vw;
+            font-size: clamp(0.8rem, 1.2vw, 1.2rem);
             letter-spacing: 0.1vw;
         }
 
         /* Right Column (Location Card) */
         .right-column {
             width: 50vw;
-            height: 100%;
+            min-height: 450px;
             background-color: #1e293b;
             border: 0.35vw solid #334155;
             border-radius: 1.8vw;
@@ -180,7 +180,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
 
         .location-header {
-            font-size: 1.8vw;
+            font-size: clamp(1.2rem, 1.8vw, 1.8vw);
             font-weight: bold;
             text-align: center;
             padding: 1.5vh;
@@ -198,12 +198,86 @@ const char index_html[] PROGMEM = R"rawliteral(
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            min-height: 300px;
         }
 
         .map-container iframe {
             width: 100%;
             height: 100%;
             border: none;
+        }
+
+        /* Mobile Responsive Breakpoint */
+        @media (max-width: 768px) {
+            body {
+                width: 100%;
+                overflow-x: hidden;
+            }
+
+            .main-title {
+                font-size: 6vw;
+                width: 90vw;
+                border-radius: 3vw;
+                border-width: 0.5vw;
+                padding: 2vh 0;
+            }
+
+            .subtitle {
+                font-size: 3.5vw;
+                width: 90vw;
+                border-radius: 3vw;
+                border-width: 0.5vw;
+                padding: 1.5vh 0;
+            }
+
+            .dashboard-layout {
+                flex-direction: column;
+                width: 92vw;
+                gap: 2vh;
+            }
+
+            .left-column {
+                width: 100%;
+            }
+
+            .right-column {
+                width: 100%;
+                height: 400px;
+                border-radius: 3vw;
+                border-width: 0.5vw;
+            }
+
+            .card {
+                width: 100%;
+                font-size: 4vw;
+                border-radius: 3vw;
+                border-width: 0.5vw;
+                padding: 2vh 4vw;
+                min-height: 60px;
+            }
+
+            .small-input {
+                font-size: 3.5vw;
+                padding: 1.2vh 2vw;
+                border-radius: 2vw;
+                border-width: 0.3vw;
+            }
+
+            .badge {
+                font-size: 3.5vw;
+                padding: 0.5vh 2vw;
+                border-radius: 2vw;
+            }
+
+            .location-header {
+                border-radius: 2vw;
+                border-width: 0.4vw;
+            }
+
+            .map-container {
+                border-radius: 2vw;
+                border-width: 0.4vw;
+            }
         }
     </style>
 </head>
