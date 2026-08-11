@@ -115,13 +115,28 @@ void handleRoot() {
 
 // Send telemetry JSON
 void handleData() {
+  
+  String esp32Status = "ONLINE";
+  String ultrasonicStatus = (distance > 0 && distance < 400) ? "ONLINE" : "OFFLINE";
+  String gpsStatus = gpsValid ? "ONLINE" : "OFFLINE";
+  String wifiStatus = (WiFi.status() == WL_CONNECTED) ? "CONNECTED" : "DISCONNECTED";
+  // Current readings of data
   String json = "{";
-  json += String("\"percentage\":") + " \"" + String(percentage, 0) + "%\"" + ",";
-  json += "\"hasGPS\":" + String(gpsValid) + ",";
+  json += "\"percentage\":\"" + String(percentage, 0) + "%\",";
+  json += "\"hasGPS\":" + String(gpsValid ? "true" : "false") + ",";
   json += "\"ledColor\":" + String(colorState) + ",";
-  json += "\"height\":" + String(currentBinHeight, 1) + ","; // Return current height
-  json += String("\"mapUrl\":\"https://maps.google.com/maps?q=") + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
+  json += "\"distance\":" + String(distance) + ",";
+  json += "\"height\":" + String(currentBinHeight, 1) + ",";
+  
+  // System Health fields
+  json += "\"esp32Status\":\"" + esp32Status + "\",";
+  json += "\"ultrasonicStatus\":\"" + ultrasonicStatus + "\",";
+  json += "\"gpsStatus\":\"" + gpsStatus + "\",";
+  json += "\"wifiStatus\":\"" + wifiStatus + "\",";
+  
+  json += "\"mapUrl\":\"https://maps.google.com/maps?q=" + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6) + "&output=embed\"";
   json += "}";
+
   server.send(200, "application/json", json);
 }
 

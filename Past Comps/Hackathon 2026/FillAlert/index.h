@@ -99,12 +99,40 @@ const char index_html[] PROGMEM = R"rawliteral(
             width: 100%;
         }
 
-        /* Specialized Layout for Height Input Card */
+        /* Multi-row Card Layout */
+        .multi-row-card {
+            flex-direction: column;
+            justify-content: center;
+            align-items: stretch;
+            gap: 1vh;
+            padding: 1.2vh 1.8vw;
+        }
+
+        .card-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* System Health Section Header */
+        .section-header {
+            font-size: clamp(1rem, 1.3vw, 1.3rem);
+            font-weight: bold;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.08vw;
+            border-bottom: 0.15vw solid #334155;
+            padding-bottom: 0.6vh;
+            margin-bottom: 0.4vh;
+        }
+
+        /* Combined Height & Input Card Layout */
         .height-card {
             flex-direction: column;
             justify-content: center;
             align-items: stretch;
-            gap: 0.6vh;
+            gap: 0.8vh;
             padding: 1.2vh 1.8vw;
         }
 
@@ -153,14 +181,15 @@ const char index_html[] PROGMEM = R"rawliteral(
             transition: width 0.4s ease-out, background-color 0.4s ease-out;
         }
 
-        /* LED Badge Pill */
+        /* LED & Status Badge Pill */
         .badge {
-            background-color: #117000;
+            background-color: #197500;
             color: #ffffff;
             padding: 0.4vh 1.2vw;
             border-radius: 1vw;
-            font-size: clamp(0.8rem, 1.2vw, 1.2rem);
-            letter-spacing: 0.1vw;
+            font-size: clamp(0.8rem, 1.1vw, 1.1rem);
+            letter-spacing: 0.08vw;
+            font-weight: bold;
         }
 
         /* Right Column (Location Card) */
@@ -269,6 +298,10 @@ const char index_html[] PROGMEM = R"rawliteral(
                 border-radius: 2vw;
             }
 
+            .section-header {
+                font-size: 3.8vw;
+            }
+
             .location-header {
                 border-radius: 2vw;
                 border-width: 0.4vw;
@@ -301,27 +334,51 @@ const char index_html[] PROGMEM = R"rawliteral(
                 </div>
             </div>
 
-            <!-- GPS -->
+            <!-- Sensor Distance -->
             <div class="card">
-                GPS: <span id="gps">Unavailable</span>
+                Sensor Distance: <span id="distance">0 cm</span>
             </div>
 
-            <!-- LED Status (Text box removed) -->
-            <div class="card">
-                LED Color: <span class="badge" id="led">GREEN</span>
+            <!-- Combined Collection & LED Status Card -->
+            <div class="card multi-row-card">
+                <div class="card-row">
+                    <span>Collection Status:</span>
+                    <span class="badge" id="collection-status" style="background-color: #197500;">NORMAL</span>
+                </div>
+                <div class="card-row">
+                    <span>LED Color:</span>
+                    <span class="badge" id="led">GREEN</span>
+                </div>
             </div>
 
-            <!-- Current Trashcan Height Display -->
-            <div class="card">
-                Current Trashcan Height: <span id="current-height">0 cm</span>
+            <!-- System Health Card -->
+            <div class="card multi-row-card">
+                <div class="section-header">System Health</div>
+                <div class="card-row">
+                    <span>ESP32:</span>
+                    <span class="badge" id="esp32-status" style="background-color: #197500;">ONLINE</span>
+                </div>
+                <div class="card-row">
+                    <span>Ultrasonic:</span>
+                    <span class="badge" id="ultrasonic-status" style="background-color: #197500;">ONLINE</span>
+                </div>
+                <div class="card-row">
+                    <span>GPS:</span>
+                    <span class="badge" id="gps-status" style="background-color: #197500;">ONLINE</span>
+                </div>
+                <div class="card-row">
+                    <span>WiFi:</span>
+                    <span class="badge" id="wifi-status" style="background-color: #197500;">CONNECTED</span>
+                </div>
             </div>
 
-            <!-- Enter Trashcan Height Input -->
+            <!-- Combined Trashcan Height Display & Input Card -->
             <div class="card height-card">
                 <div class="height-header">
-                    Enter trashcan height
+                    <span>Current Height:</span>
+                    <span id="current-height">0 cm</span>
                 </div>
-                <input type="number" class="small-input" id="height-input" placeholder="Height in cm...">
+                <input type="number" class="small-input" id="height-input" placeholder="Enter new height in cm...">
             </div>
         </div>
 
@@ -357,8 +414,32 @@ const char index_html[] PROGMEM = R"rawliteral(
             .then(data => {
                 document.getElementById('percentage').innerText = data.percentage;
                 document.getElementById('progress-bar').style.width = data.percentage;
-                document.getElementById('gps').innerText = data.hasGPS ? 'YES' : 'NO';
                 document.getElementById('current-height').innerText = (data.height || 0) + ' cm';
+                document.getElementById('distance').innerText = (data.distance !== undefined ? data.distance : 0) + ' cm';
+
+                // System Health Status Logic
+                updateBadge('esp32-status', data.esp32Status, 'ONLINE', 'OFFLINE');
+                updateBadge('ultrasonic-status', data.ultrasonicStatus, 'ONLINE', 'OFFLINE');
+                updateBadge('gps-status', data.hasGPS ? true : data.gpsStatus, 'ONLINE', 'OFFLINE');
+                updateBadge('wifi-status', data.wifiStatus !== undefined ? data.wifiStatus : true, 'CONNECTED', 'DISCONNECTED');
+
+                // Collection Status Logic
+                const collectionBadge = document.getElementById('collection-status');
+                if (data.collectionStatus) {
+                    collectionBadge.innerText = data.collectionStatus.toUpperCase();
+                } else {
+                    const numericFill = parseInt(data.percentage) || 0;
+                    if (numericFill >= 80) {
+                        collectionBadge.innerText = 'PICKUP NEEDED';
+                        collectionBadge.style.backgroundColor = '#ac0000';
+                    } else if (numericFill >= 50) {
+                        collectionBadge.innerText = 'FILLING UP';
+                        collectionBadge.style.backgroundColor = '#a9ac00';
+                    } else {
+                        collectionBadge.innerText = 'NORMAL';
+                        collectionBadge.style.backgroundColor = '#197500';
+                    }
+                }
 
                 switch (data.ledColor) {
                     case 0:
@@ -387,8 +468,16 @@ const char index_html[] PROGMEM = R"rawliteral(
                 }
             });
     }
-    setInterval(updateData, 250);
 
+    function updateBadge(id, isHealthy, activeText, inactiveText) {
+        const badge = document.getElementById(id);
+        const active = isHealthy === true || isHealthy === 1 || isHealthy === 'ONLINE' || isHealthy === 'CONNECTED';
+        
+        badge.innerText = active ? activeText : inactiveText;
+        badge.style.backgroundColor = active ? '#197500' : '#ac0000';
+    }
+
+    setInterval(updateData, 250);
 
     const heightInput = document.getElementById('height-input');
 
@@ -398,7 +487,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
             if (!isNaN(newHeight) && newHeight > 0) {
                 sendHeightToServer(newHeight);
-                heightInput.value = ' '; // Clear input box after sending
+                heightInput.value = ''; // Clear input box after sending
             }
         }
     });
