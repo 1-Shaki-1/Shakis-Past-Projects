@@ -108,6 +108,8 @@ int badReadings = 0;
 
 unsigned long sensorTimer = 0;
 
+bool isLidOpen = false;
+
 // Send HTML page
 void handleRoot() {
   server.send(200, "text/html", index_html);
@@ -138,6 +140,7 @@ void handleData() {
   json += "\"ledColor\":" + String(colorState) + ",";
   json += "\"distance\":" + String(distance) + ",";
   json += "\"height\":" + String(currentBinHeight, 1) + ",";
+  json += "\"lidOpen\":" + String(isLidOpen ? "true" : "false") + ",";
 
   // System Health fields
   json += "\"esp32Status\":\"" + esp32Status + "\",";
