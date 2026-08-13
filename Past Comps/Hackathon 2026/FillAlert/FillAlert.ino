@@ -71,7 +71,6 @@ float currentBinHeight = 34.0;
 long distance = 999;
 double percentage = 0;
 int badReadings = 0;
-bool isLidOpen = false;
 
 // GPS data
 bool gpsValid = false;
@@ -137,7 +136,7 @@ void loop() {
   handleConnection();
   
   updateSensor();
-  updateLidState();
+
   updateTrashState();
   updateGPS();
   
@@ -187,7 +186,6 @@ void handleData() { //  JSON file to website for updating data
   json += "\"ledColor\":" + String(colorState) + ",";
   json += "\"distance\":" + String(distance) + ",";
   json += "\"height\":" + String(currentBinHeight, 1) + ",";
-  json += "\"lidOpen\":" + String(isLidOpen ? "true" : "false") + ",";
   json += "\"esp32Status\":\"ONLINE\",";
   json += "\"ultrasonicStatus\":\"" + sonarStat + "\",";
   json += "\"gpsStatus\":\"" + gpsStat + "\",";
@@ -286,12 +284,7 @@ void updateTrashState() {
   }
 }
 
-void updateLidState() { // Checks if lid is open or not 
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
-  float angle = abs(atan2(a.acceleration.y, a.acceleration.z) * 180.0 / PI);
-  isLidOpen = (angle > 45.0);
-}
+
 
 void updateGPS() { // grabbing gps coordinates
   while (GPSSerial.available() > 0) {
