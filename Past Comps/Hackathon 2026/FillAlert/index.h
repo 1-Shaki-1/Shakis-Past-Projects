@@ -380,6 +380,10 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <span class="badge" id="gps-status" style="background-color: #197500;">ONLINE</span>
                 </div>
                 <div class="card-row">
+                    <span>Gyroscope:</span>
+                    <span class="badge" id="gyro-status" style="background-color: #197500;">ONLINE</span>
+                </div>
+                <div class="card-row">
                     <span>WiFi:</span>
                     <span class="badge" id="wifi-status" style="background-color: #197500;">CONNECTED</span>
                 </div>
@@ -412,13 +416,12 @@ const char index_html[] PROGMEM = R"rawliteral(
         fetch('/data')
             .then(response => response.json())
             .then(data => {
-                if (data.hasGPS && data.mapUrl && data.mapUrl !== "") {
+                if (data.hasGPS) {
                     document.getElementById('location').src = data.mapUrl;
                 } else {
-                    document.getElementById('location').src = 'about:blank';
+                    document.getElementById('location').src = '';
                 }
-            })
-            .catch(err => console.error('Error updating location:', err));
+            });
     }
     setInterval(updateLocation, 10000);
 
@@ -434,20 +437,9 @@ const char index_html[] PROGMEM = R"rawliteral(
                 // System Health Status Logic
                 updateBadge('esp32-status', data.esp32Status, 'ONLINE', 'OFFLINE');
                 updateBadge('ultrasonic-status', data.ultrasonicStatus, 'ONLINE', 'OFFLINE');
+                updateBadge('gps-status', data.hasGPS ? true : data.gpsStatus, 'ONLINE', 'OFFLINE');
+                updateBadge('gyro-status', data.gyroStatus !== undefined ? data.gyroStatus : true, 'ONLINE', 'OFFLINE');
                 updateBadge('wifi-status', data.wifiStatus !== undefined ? data.wifiStatus : true, 'CONNECTED', 'DISCONNECTED');
-
-                // Dedicated GPS Status Badge Logic
-                const gpsBadge = document.getElementById('gps-status');
-                if (data.gpsStatus === "checking for satellites" || data.gpsStatus === "SEARCHING") {
-                    gpsBadge.innerText = 'SEARCHING';
-                    gpsBadge.style.backgroundColor = '#a9ac00'; // Yellow
-                } else if (data.hasGPS || data.gpsStatus === "ONLINE") {
-                    gpsBadge.innerText = 'ONLINE';
-                    gpsBadge.style.backgroundColor = '#197500'; // Green
-                } else {
-                    gpsBadge.innerText = 'OFFLINE';
-                    gpsBadge.style.backgroundColor = '#ac0000'; // Red
-                }
 
                 // Collection Status Logic
                 const collectionBadge = document.getElementById('collection-status');
@@ -492,8 +484,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                         document.getElementById('led').style.backgroundColor = '#1e293b';
                         document.getElementById('led').innerText = 'OFF';
                 }
-            })
-            .catch(err => console.error('Error updating data:', err));
+            });
     }
 
     function updateBadge(id, isHealthy, activeText, inactiveText) {
