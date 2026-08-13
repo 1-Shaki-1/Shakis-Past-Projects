@@ -62,9 +62,10 @@ bool emailAlreadySent = false;
 bool fullNotificationSent = false;
 
 // Trash states
-enum TrashState { GREEN, YELLOW, RED, BLUE, BOARD_BLUE };
+enum TrashState { GREEN, YELLOW, RED, BLUE, BOARD_BLUE, LID_OPEN };
 TrashState colorState = BOARD_BLUE;
 TrashState previousColorState = BOARD_BLUE;
+bool ledOn = false;
 
 // Sensor data
 float currentBinHeight = 34.0;
@@ -80,12 +81,14 @@ unsigned long lastGpsByteTime = 0;
 // System states
 bool isConnected = false;
 bool buzzerOn = false;
-
+bool lidOpen = false;
 // Timers
 unsigned long beepTimer = 0;
-unsigned long blynkTimer = 0;
+unsigned long lidTimer = 0;
 unsigned long reconnectTimer = 0;
 unsigned long sensorTimer = 0;
+
+const int FLASH_DELAY = 500;
 
 
 // --- SETUP & LOOP ---
@@ -269,17 +272,20 @@ void updateTrashState() {
     colorState = BOARD_BLUE;
     return;
   }
-
-  if (distance == 999) {
-    if (++badReadings >= 5) colorState = BLUE;
+  if (lidOpen) {
+    colorState = LID_OPEN;
   } else {
-    badReadings = 0;
-    if (colorState != RED) {
-      if (percentage >= getRedThreshold()) colorState = RED;
-      else if (percentage >= getYellowThreshold()) colorState = YELLOW;
-      else colorState = GREEN;
-    } else if (percentage < getRedThreshold() - 5) {
-      colorState = YELLOW;
+    if (distance == 999) {
+      if (++badReadings >= 5) colorState = BLUE;
+    } else {
+      badReadings = 0;
+      if (colorState != RED) {
+        if (percentage >= getRedThreshold()) colorState = RED;
+        else if (percentage >= getYellowThreshold()) colorState = YELLOW;
+        else colorState = GREEN;
+      } else if (percentage < getRedThreshold() - 5) {
+        colorState = YELLOW;
+      }
     }
   }
 }
@@ -385,6 +391,7 @@ void updateLEDs() { // Give led colour based on state
   if (colorState == GREEN) setRGBColor(0, 255, 0);
   else if (colorState == YELLOW) setRGBColor(255, 255, 0);
   else if (colorState == RED) setRGBColor(255, 0, 0);
+  else if (colorState == LID_OPEN) lidOpenFlash();
   else setRGBColor(0, 0, 0);
 }
 
@@ -404,6 +411,21 @@ void board_flash() { // Offline board flash
   } else {
     analogWrite(ONBOARD_LED, 0);
   }
+}
+
+void lidOpenFlash() {
+  if (millis() - lidTimer > FLASH_DELAY) {
+    lidTimer = millis();
+    ledOn = true;
+    setRGBColor(0,0,255);
+    
+  } else if (millis() - lidTimer > FLASH_DELAY && ledOn) {
+    lidTimer = millis();
+    ledOn = false;
+    setRGBColor(0,0,0);
+    
+  }
+
 }
 
 void sensorErrorFlash(void* parameter) { // Flashes blue for sensor error

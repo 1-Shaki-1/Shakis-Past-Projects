@@ -379,10 +379,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                     <span>GPS:</span>
                     <span class="badge" id="gps-status" style="background-color: #197500;">ONLINE</span>
                 </div>
-                <div class="card-row">
-                    <span>Gyroscope:</span>
-                    <span class="badge" id="gyro-status" style="background-color: #197500;">ONLINE</span>
-                </div>
+
                 <div class="card-row">
                     <span>WiFi:</span>
                     <span class="badge" id="wifi-status" style="background-color: #197500;">CONNECTED</span>
@@ -438,7 +435,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                 updateBadge('esp32-status', data.esp32Status, 'ONLINE', 'OFFLINE');
                 updateBadge('ultrasonic-status', data.ultrasonicStatus, 'ONLINE', 'OFFLINE');
                 updateBadge('gps-status', data.hasGPS ? true : data.gpsStatus, 'ONLINE', 'OFFLINE');
-                updateBadge('gyro-status', data.gyroStatus !== undefined ? data.gyroStatus : true, 'ONLINE', 'OFFLINE');
                 updateBadge('wifi-status', data.wifiStatus !== undefined ? data.wifiStatus : true, 'CONNECTED', 'DISCONNECTED');
 
                 // Collection Status Logic
