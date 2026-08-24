@@ -1,9 +1,4 @@
-#define BLYNK_TEMPLATE_ID "TMPL2ksohoznS"
-#define BLYNK_TEMPLATE_NAME "Smart Trash Can"
-#define BLYNK_AUTH_TOKEN "TWF4N7EYEEna6tP-c_TtcV8ztCiXvmaF"
-
 #include <WiFi.h>
-#include <BlynkSimpleEsp32.h>
 #include <time.h>
 #include <TinyGPSPlus.h>
 #include <HTTPClient.h>
@@ -18,15 +13,18 @@
 // --- CONSTANTS & CONFIG ---
 
 // WiFi details
-const char* ssid = "BELL769";
-const char* password = "C5C2F99DF6A3";
-
+const char* ssid = " wifi user";
+const char* password = "pass";
 // Google script URL
-String url = "https://script.google.com/macros/s/AKfycbzauEF7aP8uP3ZqOLGqv1ytd_-U0fHIB0qkS7nX2VDVlA2euF6D32Cr5Shb_IYMfZU/exec?";
+String url = "https://script.google.com/macros/s/ID-HERE/exec?";
+
+// --- MOCK GPS CONFIG (Hackathon Fallback) ---
+const double MOCK_LAT = 43.653226;
+const double MOCK_LNG = -79.383184;
 
 // Pin definitions
-const int GPS_RX = 23;      // GPS RX pin
-const int GPS_TX = 5;       // GPS TX pin
+const int GPS_RX = 23;      // GPS RX pin (unused now)
+const int GPS_TX = 5;       // GPS TX pin (unused now)
 const int SONAR_RX = 18;    // Sonar RX pin
 const int SONAR_TX = 19;    // Sonar TX pin
 const int MPU_SDA = 21;     // I2C data pin
@@ -37,12 +35,12 @@ const int LED_PINB = 27;    // Blue LED pin
 const int ONBOARD_LED = 2;  // Onboard LED pin
 const int BUZZER_PIN = 13;  // Buzzer pin
 
-const int BEEP_CD = 500;    // Beep cooldown
+const int BEEP_CD = 500;  // Beep cooldown
 
 // --- OBJECTS ---
 
 WebServer server(80);           // Web server
-TinyGPSPlus gps;                // GPS instance
+TinyGPSPlus gps;                // GPS instance (retained for compatibility)
 HardwareSerial GPSSerial(1);    // UART1 serial
 HardwareSerial SonarSerial(2);  // UART2 serial
 Adafruit_MPU6050 mpu;           // Gyro instance
@@ -62,7 +60,12 @@ bool emailAlreadySent = false;
 bool fullNotificationSent = false;
 
 // Trash states
-enum TrashState { GREEN, YELLOW, RED, BLUE, BOARD_BLUE, LID_OPEN };
+enum TrashState { GREEN,
+                  YELLOW,
+                  RED,
+                  BLUE,
+                  BOARD_BLUE,
+                  LID_OPEN };
 TrashState colorState = BOARD_BLUE;
 TrashState previousColorState = BOARD_BLUE;
 bool ledOn = false;
@@ -72,10 +75,11 @@ float currentBinHeight = 34.0;
 long distance = 999;
 double percentage = 0;
 int badReadings = 0;
+float tiltAngle = 0.0;
 
-// GPS data
-bool gpsValid = false;
-bool locationValid = false;
+// GPS data (Mocked)
+bool gpsValid = true;
+bool locationValid = true;
 unsigned long lastGpsByteTime = 0;
 
 // System states
@@ -95,14 +99,19 @@ const int FLASH_DELAY = 500;
 
 void setup() {
   Serial.begin(115200);
-  GPSSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
   SonarSerial.begin(9600, SERIAL_8N1, SONAR_RX, SONAR_TX);
   Wire.begin(MPU_SDA, MPU_SCL);
-  
-  if (!mpu.begin()) {
-    Serial.println(F("MPU missing"));
+  Wire.setClock(100000); // Safe 100kHz speed
+  delay(200);
+
+  // Wake up MPU6050 (Write 0 to Power Management register 0x6B)
+  Wire.beginTransmission(0x68);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  if (Wire.endTransmission() != 0) {
+    Serial.println("Error: MPU6050 did not respond to wake command!");
   } else {
-    Serial.println(F("MPU ready"));
+    Serial.println("MPU6050 Woken Up & Ready!");
   }
 
   pinMode(ONBOARD_LED, OUTPUT);
@@ -120,13 +129,12 @@ void setup() {
   Serial.println(F("Starting"));
 
   WiFi.begin(ssid, password);
-  Blynk.config(BLYNK_AUTH_TOKEN);
 
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   setenv("TZ", "EST5EDT,M3.2.0,M11.1.0", 1);
   tzset();
 
-  xTaskCreatePinnedToCore(emailTask, "EmailTask", 10000, NULL, 1, &emailTaskHandle, 0);
+  xTaskCreatePinnedToCore(emailTask, "EmailTask", 20000, NULL, 1, &emailTaskHandle, 0);
   xTaskCreatePinnedToCore(sensorErrorFlash, "SensorError", 2048, NULL, 2, &LEDTaskHandle, 1);
 
   server.on("/", handleRoot);
@@ -137,14 +145,13 @@ void setup() {
 
 void loop() {
   handleConnection();
-  
-  updateSensor();
 
+  updateSensor();
+  updateGyro();
   updateTrashState();
   updateGPS();
-  
+
   if (isConnected) {
-    
     handleNotifications();
     server.handleClient();
     if (!emailAlreadySent) {
@@ -161,7 +168,7 @@ void loop() {
 
 // --- NETWORK & WEB FUNCTIONS ---
 
-void handleConnection() { // connect to wifi
+void handleConnection() {  // connect to wifi
   isConnected = (WiFi.status() == WL_CONNECTED);
   if (!isConnected) {
     colorState = BOARD_BLUE;
@@ -173,33 +180,35 @@ void handleConnection() { // connect to wifi
   }
 }
 
-void handleRoot() { // Initialise website
+void handleRoot() {  // Initialise website
   server.send(200, "text/html", index_html);
 }
 
-void handleData() { //  JSON file to website for updating data
+void handleData() {  //  JSON file to website for updating data
   String wifiStat = (WiFi.status() == WL_CONNECTED) ? "CONNECTED" : "DISCONNECTED";
   String sonarStat = (distance > 0 && distance < 400) ? "ONLINE" : "OFFLINE";
-  String gpsStat = !gpsValid ? "OFFLINE" : (!locationValid ? "checking for satellites" : "ONLINE");
+  String gpsStat = "ONLINE";
 
   String json = "{";
   json += "\"percentage\":\"" + String(percentage, 0) + "%\",";
-  json += "\"hasGPS\":" + String(locationValid ? "true" : "false") + ",";
+  json += "\"hasGPS\":true,";
   json += "\"gpsLocation\":\"" + getGPSLocation() + "\",";
   json += "\"ledColor\":" + String(colorState) + ",";
   json += "\"distance\":" + String(distance) + ",";
+  json += "\"tiltAngle\":" + String(tiltAngle, 1) + ",";
   json += "\"height\":" + String(currentBinHeight, 1) + ",";
   json += "\"esp32Status\":\"ONLINE\",";
   json += "\"ultrasonicStatus\":\"" + sonarStat + "\",";
   json += "\"gpsStatus\":\"" + gpsStat + "\",";
   json += "\"wifiStatus\":\"" + wifiStat + "\",";
-  json += "\"mapUrl\":\"" + (locationValid ? getMapLink() : "") + "&output=embed\"";
+  json += "\"gyroStatus\":true,";
+  json += "\"mapUrl\":\"" + getMapLink() + "&output=embed\"";
   json += "}";
 
   server.send(200, "application/json", json);
 }
 
-void handleSetHeight() { // Recieves input from Website for new height
+void handleSetHeight() {  // Recieves input from Website for new height
   if (server.hasArg("plain")) {
     StaticJsonDocument<200> doc;
     if (!deserializeJson(doc, server.arg("plain")) && doc.containsKey("height")) {
@@ -218,7 +227,7 @@ void handleSetHeight() { // Recieves input from Website for new height
 
 // --- SENSOR LOGIC FUNCTIONS ---
 
-void updateSensor() { // updates sensor readings
+void updateSensor() {  // updates sensor readings
   if (millis() - sensorTimer > 250) {
     sensorTimer = millis();
     distance = getAverageDistance();
@@ -226,7 +235,7 @@ void updateSensor() { // updates sensor readings
   }
 }
 
-long getAverageDistance() {  // Filters out bad readings 
+long getAverageDistance() {  // Filters out bad readings
   long total = 0;
   int count = 0;
   for (int i = 0; i < 5; i++) {
@@ -239,27 +248,31 @@ long getAverageDistance() {  // Filters out bad readings
   return count == 0 ? 999 : total / count;
 }
 
-long readDistance() { // Gets sensor data
-  static uint8_t buffer[4];
-  while (SonarSerial.available() >= 4) {
-    if (SonarSerial.read() == 0xFF) {
-      buffer[0] = 0xFF;
-      for (int i = 1; i < 4; i++) buffer[i] = SonarSerial.read();
-      if (((buffer[0] + buffer[1] + buffer[2]) & 0xFF) == buffer[3]) {
-        return ((buffer[1] << 8) | buffer[2]) / 10;
+long readDistance() {  // Gets sensor data
+  if(lidOpen) {
+    return 999;
+  } else {
+    static uint8_t buffer[4];
+    while (SonarSerial.available() >= 4) {
+      if (SonarSerial.read() == 0xFF) {
+        buffer[0] = 0xFF;
+        for (int i = 1; i < 4; i++) buffer[i] = SonarSerial.read();
+        if (((buffer[0] + buffer[1] + buffer[2]) & 0xFF) == buffer[3]) {
+          return ((buffer[1] << 8) | buffer[2]) / 10;
+        }
       }
     }
   }
   return 999;
-}
+} 
 
-double getPercentage(long dist) { // Convert Sensor Distance to Trash Can Percentage
+double getPercentage(long dist) {  // Convert Sensor Distance to Trash Can Percentage
   if (currentBinHeight <= 0) return 0;
   double pct = ((currentBinHeight - dist) / currentBinHeight) * 100.0;
   return constrain(pct, 0, 100);
 }
 
-double getRedThreshold() { 
+double getRedThreshold() {
   return ((currentBinHeight - 5.0) / currentBinHeight) * 100.0;
 }
 
@@ -267,7 +280,7 @@ double getYellowThreshold() {
   return ((currentBinHeight - 10.0) / currentBinHeight) * 100.0;
 }
 
-void updateTrashState() { 
+void updateTrashState() {
   if (!isConnected) {
     colorState = BOARD_BLUE;
     return;
@@ -290,30 +303,20 @@ void updateTrashState() {
   }
 }
 
-
-
-void updateGPS() { // grabbing gps coordinates
-  while (GPSSerial.available() > 0) {
-    gps.encode(GPSSerial.read());
-    lastGpsByteTime = millis();
-  }
-  gpsValid = (millis() - lastGpsByteTime < 3000) && (lastGpsByteTime > 0);
-  locationValid = gpsValid && gps.location.isValid() && (gps.location.age() < 2000);
+void updateGPS() {  // Mocked for hackathon stability
+  gpsValid = true;
+  locationValid = true;
 }
 
-String getGPSLocation() { 
-  if (!gpsValid) return "OFFLINE";
-  if (locationValid) {
-    return String(gps.location.lat(), 6) + ", " + String(gps.location.lng(), 6);
-  }
-  return "checking for satellites";
+String getGPSLocation() {
+  return String(MOCK_LAT, 6) + ", " + String(MOCK_LNG, 6);
 }
+
 // --- ALERT & NOTIFICATION FUNCTIONS ---
 
 void handleNotifications() {
   if (isConnected && colorState == RED) {
     if (!fullNotificationSent) {
-      Blynk.logEvent("trash_full", "Trash can is full!");
       fullNotificationSent = true;
 
       struct tm timeinfo;
@@ -345,7 +348,7 @@ void emailTask(void* parameter) {
   }
 }
 
-void sendEmail(String address, String date, String time) { // Main function for sending email
+void sendEmail(String address, String date, String time) {  // Main function for sending email
   String tmp = url + "address=" + urlencode(address);
   tmp += "&status=" + urlencode("FULL");
   tmp += "&date=" + urlencode(date);
@@ -353,16 +356,15 @@ void sendEmail(String address, String date, String time) { // Main function for 
   sendHttpGet(tmp);
 }
 
-void sendLinkEmail(String link) { // Helper function for dashboard link
+void sendLinkEmail(String link) {  // Helper function for dashboard link
   sendHttpGet(url + "link=" + urlencode(link));
 }
 
-String getMapLink() { // Gets google maps link 
-  if (!locationValid) return "checking for satellites";
-  return "https://maps.google.com/?q=" + String(gps.location.lat(), 6) + "," + String(gps.location.lng(), 6);
+String getMapLink() {  // Gets google maps link
+  return "https://maps.google.com/?q=" + String(MOCK_LAT, 6) + "," + String(MOCK_LNG, 6);
 }
 
-String getDashBoardLink() { // DAshboard Link from ip address
+String getDashBoardLink() {  // Dashboard Link from ip address
   return "http://" + WiFi.localIP().toString();
 }
 
@@ -379,15 +381,16 @@ void sendHttpGet(String requestUrl) {  // Sends link to google, perform action
   if (code > 0) Serial.println(http.getString());
   http.end();
 }
-// --- HARDWARE UI (LEDS & BUZZER) ---
 
-void setRGBColor(uint8_t r, uint8_t g, uint8_t b) { // Assigns colour to led
+// --- HARDWARE UI (LEDS & BUZZER & GYRO) ---
+
+void setRGBColor(uint8_t r, uint8_t g, uint8_t b) {  // Assigns colour to led
   analogWrite(LED_PINR, r);
   analogWrite(LED_PING, g);
   analogWrite(LED_PINB, b);
 }
 
-void updateLEDs() { // Give led colour based on state
+void updateLEDs() {  // Give led colour based on state
   if (colorState == GREEN) setRGBColor(0, 255, 0);
   else if (colorState == YELLOW) setRGBColor(255, 255, 0);
   else if (colorState == RED) setRGBColor(255, 0, 0);
@@ -395,7 +398,7 @@ void updateLEDs() { // Give led colour based on state
   else setRGBColor(0, 0, 0);
 }
 
-void board_flash() { // Offline board flash
+void board_flash() {  // Offline board flash
   static unsigned long currentMillis = 0;
   static int boardFade = 0;
   static int boardDirection = 5;
@@ -416,19 +419,17 @@ void board_flash() { // Offline board flash
 void lidOpenFlash() {
   if (millis() - lidTimer > FLASH_DELAY) {
     lidTimer = millis();
-    ledOn = true;
-    setRGBColor(0,0,255);
-    
-  } else if (millis() - lidTimer > FLASH_DELAY && ledOn) {
-    lidTimer = millis();
-    ledOn = false;
-    setRGBColor(0,0,0);
-    
-  }
+    ledOn = !ledOn;
 
+    if (ledOn) {
+      setRGBColor(0, 0, 255);  // Blue ON
+    } else {
+      setRGBColor(0, 0, 0);  // Blue OFF
+    }
+  }
 }
 
-void sensorErrorFlash(void* parameter) { // Flashes blue for sensor error
+void sensorErrorFlash(void* parameter) {  // Flashes blue for sensor error
   int localFade = 0;
   int localDirection = 5;
   while (true) {
@@ -453,9 +454,31 @@ void updateBuzzer() {
     buzzerOn = false;
   }
 }
+
+void updateGyro() {
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B);
+  if (Wire.endTransmission(false) != 0) return;
+  
+  Wire.requestFrom(0x68, 6, true);
+  if (Wire.available() < 6) return;
+
+  int16_t accelX = Wire.read() << 8 | Wire.read();
+  int16_t accelY = Wire.read() << 8 | Wire.read();
+  int16_t accelZ = Wire.read() << 8 | Wire.read();
+
+  tiltAngle = abs(atan2((float)accelY, (float)accelZ) * 57.2958);
+
+  if (tiltAngle > 45.0) {
+    lidOpen = true;
+  } else {
+    lidOpen = false;
+  }
+}
+
 // --- UTILITY FUNCTIONS ---
 
-String urlencode(String str) { // Encoding strings for Google URL
+String urlencode(String str) {  // Encoding strings for Google URL
   String encoded = "";
   for (int i = 0; i < str.length(); i++) {
     char c = str.charAt(i);
