@@ -1,0 +1,37 @@
+function doGet(e) {
+  var recipient = "shakitjannanthakumar@gmail.com";
+
+  // ROOM 1: Handle the Startup/Dashboard Link
+  if (e.parameter.link) {
+    var link = e.parameter.link;
+    var subject = "Smart Trash Can Online";
+    var body = "Hello!\nFill Alert is online!\nHere is the link " + link +"\nNote: You must be on the same wifi as the module in order for it to work";
+    MailApp.sendEmail(recipient, subject, body);
+    return ContentService.createTextOutput("Link Email Sent!");
+  }
+
+  // ROOM 2: Handle the Full Trash Alert
+  if (e.parameter.address && e.parameter.date && e.parameter.time && e.parameter.status) {
+    var address = e.parameter.address;
+    var date = e.parameter.date;
+    var time = e.parameter.time;
+    var status = e.parameter.status;
+
+    var subject = "Smart Trash Can Alert";
+    var body =
+    "Hello,\n\n" +
+    "The smart trash can requires attention.\n\n" +
+    "Address: " + address + "\n" +
+    "Date: " + date + "\n" +
+    "Time: " + time + "\n" +
+    "Status: " + status + "\n\n" +
+    "Please schedule collection.\n\n" +
+    "Smart Trash Can System";
+
+    MailApp.sendEmail(recipient, subject, body);
+    return ContentService.createTextOutput("Status Email Sent");
+  }
+
+  // FALLBACK: If something else gets sent
+  return ContentService.createTextOutput("Error: Unknown parameters.");
+}
